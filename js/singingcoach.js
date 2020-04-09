@@ -126,7 +126,7 @@ const notes = {
 function toggleScale() {
   
   //new plan: 8 oscillators, then a gainNode conected to them in sequence
-  audioContext = new AudioContext();
+  
   
   if (isPlaying) {
     analyser = null;
@@ -134,25 +134,63 @@ function toggleScale() {
     return "play oscillator";
   }
   else {
-    const tempo = 20;
-    const secondsPerBeat = 60 / tempo;
-    const secondsPerBar = secondsPerBeat * 4;
-    const secondsPerTick = secondsPerBeat / 4;
+    audioContext = new AudioContext();
+    //scale playback parameters
+    const tempo = 40; //beats per minute
+    const tBeat = 60 / tempo; //seconds per beat
+    const tTone = tBeat/4;  //tone sounds for a quarter of the scale note
+    const trf = 0.01; //rise fall time of tone
+    const toneOn=1; //on & off gains
+    const toneOff=0.001;
+    
     const scaleNotes = [notes.C4,notes.D4,notes.E4,notes.F4,notes.G4,notes.A4,notes.B4,notes.C5];
     
-    var osc[0] = audioContext.createOscillator();
-    var osc[1] = audioContext.createOscillator();
-    var osc[2] = audioContext.createOscillator();
-    var osc[3] = audioContext.createOscillator();
-    var osc[4] = audioContext.createOscillator();
-    var osc[5] = audioContext.createOscillator();
-    var osc[6] = audioContext.createOscillator();
-    var osc[7] = audioContext.createOscillator();
+    var osc = new Array(8); //8 oscillators
+    var gain = new Array(8); //gain blocks, to allow fade in/out
+    
+    osc[0] = audioContext.createOscillator();
+    osc[1] = audioContext.createOscillator();
+    osc[2] = audioContext.createOscillator();
+    osc[3] = audioContext.createOscillator();
+    osc[4] = audioContext.createOscillator();
+    osc[5] = audioContext.createOscillator();
+    osc[6] = audioContext.createOscillator();
+    osc[7] = audioContext.createOscillator();
+    
+    //gain blocks
+    gain[0] = audioContext.createGain();
+    gain[1] = audioContext.createGain();
+    gain[2] = audioContext.createGain();
+    gain[3] = audioContext.createGain();
+    gain[4] = audioContext.createGain();
+    gain[5] = audioContext.createGain();
+    gain[6] = audioContext.createGain();
+    gain[7] = audioContext.createGain();
 
+    //set osc frequencies and connect to gain blocks
     for(i=0; i<8; i++){
-      osc[i].frequency.value = notes.scaleNotes[i].pitch;
-      console.log(notes.scaleNotes[i].pitch);
+      console.log(scaleNotes[i]);
+      osc[i].frequency.setValueAtTime(scaleNotes[i],audioContext.currentTime);
+      osc[i].connect(gain[i]);
+      osc[i].start();
+      gain[i].gain.setValueAtTime(0,audioContext.currentTime);
+      gain[i].connect(audioContext.destination);
     }
+    
+    //play
+    let now = audioContext.currentTime;
+    
+    gain[0].gain.setValueAtTime(1, audioContext.currentTime);
+    gain[7].gain.setValueAtTime(0, audioContext.currentTime);
+    // 0 on then off
+    gain[0].gain.exponentialRampToValueAtTime(toneOn, now + trf);
+    gain[0].gain.exponentialRampToValueAtTime(toneOff, now + tTone+trf);
+    // 7 on
+    gain[7].gain.exponentialRampToValueAtTime(toneOn, now + tBeat);
+    gain[7].gain.exponentialRampToValueAtTime(toneOff, now + tBeat+tTone);
+    
+    
+    // NOW NEED TO GET THIS TO PLAY A SEQUENCE!
     /*
     let oscillator = audioContext.createOscillator();
     oscillator.frequency.value = 493.88; //B4
@@ -177,7 +215,7 @@ function toggleScale() {
   
     isPlaying = true;
     isLiveInput = false;
-    updatePitch();
+    //updatePitch();
 
     return "stop";
     }
