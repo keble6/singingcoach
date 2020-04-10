@@ -123,6 +123,7 @@ const notes = {
     C7: 2093.005, Db7: 2217.461, D7: 2349.318, Eb7: 2489.016, E7: 2637.021, F7: 2793.826, Gb7: 2959.955, G7: 3135.964, Ab7: 3322.438, A7: 3520, Bb7: 3729.31, B7: 3951.066
 };
 
+
 function toggleScale() {
   
   //new plan: 8 oscillators, then a gainNode conected to them in sequence
@@ -147,7 +148,7 @@ function toggleScale() {
     
     var osc = new Array(8); //8 oscillators
     var gain = new Array(8); //gain blocks, to allow fade in/out
-    
+    //TODO - wrap this in a class - see https://medium.com/@danagilliann/an-introduction-to-creating-music-in-the-browser-with-web-audio-api-1a8d65cc2375
     osc[0] = audioContext.createOscillator();
     osc[1] = audioContext.createOscillator();
     osc[2] = audioContext.createOscillator();
@@ -169,7 +170,6 @@ function toggleScale() {
 
     //set osc frequencies and connect to gain blocks
     for(i=0; i<8; i++){
-      console.log(scaleNotes[i]);
       osc[i].frequency.setValueAtTime(scaleNotes[i],audioContext.currentTime);
       osc[i].connect(gain[i]);
       osc[i].start();
@@ -179,42 +179,17 @@ function toggleScale() {
     
     //play
     let now = audioContext.currentTime;
+    // NOW PLAY THE SCALE!
+    for(i=0; i<8; i++){
+      now = audioContext.currentTime;
+      gain[i].gain.exponentialRampToValueAtTime(toneOn,  now+i*tBeat + trf);
+      gain[i].gain.exponentialRampToValueAtTime(toneOff, now+i*tBeat + tTone+trf);
+      
+    }
     
-    gain[0].gain.setValueAtTime(1, audioContext.currentTime);
-    gain[7].gain.setValueAtTime(0, audioContext.currentTime);
-    // 0 on then off
-    gain[0].gain.exponentialRampToValueAtTime(toneOn, now + trf);
-    gain[0].gain.exponentialRampToValueAtTime(toneOff, now + tTone+trf);
-    // 7 on
-    gain[7].gain.exponentialRampToValueAtTime(toneOn, now + tBeat);
-    gain[7].gain.exponentialRampToValueAtTime(toneOff, now + tBeat+tTone);
-    
-    
-    // NOW NEED TO GET THIS TO PLAY A SEQUENCE!
-    /*
-    let oscillator = audioContext.createOscillator();
-    oscillator.frequency.value = 493.88; //B4
-
-    let modulator = audioContext.createOscillator();
-    modulator.frequency.value=0.1;
-    modulator.type = 'triangle';
-
-    let modulationGain = audioContext.createGain();
-    modulationGain.gain.value  = 100;
-
-  
-    modulator.connect(modulationGain);
-    modulationGain.connect(oscillator.frequency);
-    oscillator.connect(analyser);
-
-    oscillator.start(0);
-    modulator.start(0);
-    
-    analyser.connect( audioContext.destination );
-    //sourceNode.start(0);*/
-  
     isPlaying = true;
     isLiveInput = false;
+    //NEXT: ADD PITCH TO CHART ARRAY
     //updatePitch();
 
     return "stop";
