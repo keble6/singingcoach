@@ -36,6 +36,9 @@ SOFTWARE.
   Accompaniment - scale/single note/sequence and note length and bpm
   */
 
+// draw the chart every 100ms
+
+
 //parameters for the chart table
 var chart_table_length=64;
 var chartReady = true;
@@ -48,18 +51,31 @@ google.charts.setOnLoadCallback(drawChart);
 // now run
 window.AudioContext = window.AudioContext || window.webkitAudioContext;
 
-var isBlank=true; //true when audio intput is too low. It is set/reset by updatePitch, depending on ac from autoCorrelate()
+var isSquelched=true; //true when audio intput is too low. It is set/reset by updatePitch, depending on ac from autoCorrelate()
 var audioContext = null;
-var isPlaying = false;
+// new flags for each type of input
+var isVoice = false;
+var isScale = false;
+var isOsc = false;
+
+var sourceNode = null;
 var oscillator = null;
 var analyser = null;
 var theBuffer = null;
 var DEBUGCANVAS = null;
 var mediaStreamSource = null;
 
-
+// new 11/4/20
+setTimeout(ifPlayingDrawChart, 100);
+function ifPlayingDrawChart() {
+  console.log('timeout function');
+  if(isVoice || isScale){ //voice or scale are running
+    console.log('timeout function and playing');
+    drawChart();
+  }
+}
 /************************************************ */
-/* functions for live input */
+/* functions for voice input */
 function error() {
     const errorMessage = 'navigator.MediaDevices.getUserMedia error: ' + error.message + ' ' + error.name;
   console.log(errorMessage);
@@ -124,18 +140,24 @@ const notes = {
 };
 
 
-function toggleScale() {
-  
+function startScale(){  // once the scale has started we let it complete
   //new plan: 8 oscillators, then a gainNode conected to them in sequence
-  
-  
-  if (isPlaying) {
-    analyser = null;
-    isPlaying = false;
-    return "play oscillator";
+  if (isScale) {
+    isScale = false;
+    if (!window.cancelAnimationFrame){
+      window.cancelAnimationFrame = window.webkitCancelAnimationFrame;
+    }
+    window.cancelAnimationFrame( rafID );
+    return "play scale";
   }
+  
   else {
+    isScale = true;
     audioContext = new AudioContext();
+    analyser = audioContext.createAnalyser();
+    analyser.fftSize = 2048;
+    analyser.connect(audioContext.destination);
+    
     //scale playback parameters
     const tempo = 40; //beats per minute
     const tBeat = 60 / tempo; //seconds per beat
@@ -174,12 +196,13 @@ function toggleScale() {
       osc[i].connect(gain[i]);
       osc[i].start();
       gain[i].gain.setValueAtTime(0,audioContext.currentTime);
-      gain[i].connect(audioContext.destination);
+      //gain[i].connect(audioContext.destination);
+      gain[i].connect(audioContext.analyser);
     }
     
     //play
     let now = audioContext.currentTime;
-    // NOW PLAY THE SCALE!
+    // NOW PLAY THE SCALE! Then stop
     for(i=0; i<8; i++){
       now = audioContext.currentTime;
       gain[i].gain.exponentialRampToValueAtTime(toneOn,  now+i*tBeat + trf);
@@ -187,10 +210,20 @@ function toggleScale() {
       
     }
     
-    isPlaying = true;
-    isLiveInput = false;
+    //isScale = false;
     //NEXT: ADD PITCH TO CHART ARRAY
-    //updatePitch();
+    /* actually we have to have separate updatePitch for scale and for
+    voice (live input) - cal them updatePitchScale and updatePitchVoice.
+    Asynchronously there is a timer which updates the pitch from each source
+    (if both Scale and Voice are active) and also the Chart
+    
+    TEST Chartt timer first - say at 100ms update rate
+    
+    HMM, MIGHT NOT BE TRUE
+    So just try adding the pitch to the other used array
+     - do this by connecting the oscillators to analyser, then analyser to destimation
+    */
+    updatePitch();
 
     return "stop";
     }
@@ -199,20 +232,30 @@ function toggleScale() {
 
 function toggleOscillator() {
   /**** This is now an FM source ***************/
-    if (isPlaying) {
+    if (isOsc) {
+        
+        isOsc = false;
+        oscillator.stop(0);
+        modulator.stop(0);
         analyser = null;
-        isPlaying = false;
+        oscillaor = null;
+        modulator = null;
+        if (!window.cancelAnimationFrame) {
+          window.cancelAnimationFrame = window.webkitCancelAnimationFrame;
+        }
+        window.cancelAnimationFrame( rafID );
         return "play oscillator";
     }
     else {
+    isOsc = true;
     audioContext = new AudioContext();
     // frequency modulator
     analyser = audioContext.createAnalyser();
     analyser.fftSize = 2048;
-    let oscillator = audioContext.createOscillator();
+    oscillator = audioContext.createOscillator();
     oscillator.frequency.value = 493.88; //B4
 
-    let modulator = audioContext.createOscillator();
+    modulator = audioContext.createOscillator();
     modulator.frequency.value=0.1;
     modulator.type = 'triangle';
 
@@ -228,33 +271,35 @@ function toggleOscillator() {
     modulator.start(0);
     
     analyser.connect( audioContext.destination );
-    //sourceNode.start(0);
-  
-    isPlaying = true;
-    isLiveInput = false;
     updatePitch();
 
     return "stop";
     }
 }
 /************************************************ */
+/* TODO */
+/** TOGGLE does not work - should change to use MediaStreamTrack
+    which has a method to remove the track **/
 
-function toggleLiveInput() {
-  if (isPlaying) {  //switch off
+function toggleVoiceInput() {
+  if (isVoice) {  //switch off
         //stop playing and return
-        sourceNode.stop( 0 );
-        sourceNode = null;
-        analyser = null;
-        isPlaying = false;
+        //sourceNode.stop( 0 );
+        //sourceNode = null;
+        //analyser = null;
+        if (!window.cancelAnimationFrame)
+			window.cancelAnimationFrame = window.webkitCancelAnimationFrame;
+        window.cancelAnimationFrame( rafID );
+        isVoice = false;
     }
     else {
+      isVoice = true;
       audioContext = new AudioContext();
       getAudio();
     }
 }
 
 /************************************************ */
-
 var rafID = null;
 var tracks = null;
 var buflen = 1024;
@@ -273,7 +318,7 @@ function centsOffFromPitch( frequency, note ) {
 /************************************************ */
 
 var MIN_SAMPLES = 0;  // will be initialized when AudioContext is created.
-var MIN_AUDIO = 0.03;  // below this amplitude threshold we ignore the audio
+var MIN_AUDIO = 0.01;  // below this amplitude threshold we ignore the audio
 
 var GOOD_ENOUGH_CORRELATION = 0.9; // this is the "bar" for how close a correlation needs to be
 /************************************************ */
@@ -337,12 +382,12 @@ function updatePitch( time ) {
 	var cycles = new Array;
 	analyser.getFloatTimeDomainData( buf );
 	var ac = autoCorrelate( buf, audioContext.sampleRate );
-  //console.log(ac);
+  console.log('ac',ac);
  	if (ac == -1) {
 		//new - blank the chart y value
-		isBlank = true;
+		isSquelched = true;
  	} else {
- 	  isBlank = false;
+ 	  isSquelched = false;
 
 	 	pitch = ac;
 
@@ -353,9 +398,9 @@ function updatePitch( time ) {
 		
 
     //send note to chart
-    // first, fill up the table - if not isBlank
-    //console.log('blank?',isBlank);
-    if(!isBlank){
+    // first, fill up the table - if not isSquelched
+    console.log('squelched?',isSquelched);
+    if(!isSquelched){
       console.log('filling');
       if(timeAndNote.length < chart_table_length){
         timeAndNote.push([performance.now(),noteFloat]);
@@ -382,10 +427,11 @@ function updatePitch( time ) {
     }
 
 	}
-
 	if (!window.requestAnimationFrame)
 		window.requestAnimationFrame = window.webkitRequestAnimationFrame;
 	rafID = window.requestAnimationFrame( updatePitch );
+
+	
 }
 
 
@@ -395,7 +441,7 @@ function updatePitch( time ) {
 /************************************************ */
 
 function drawChart() {
-  //console.log(blank);
+  console.log('drawchart');
   var data = google.visualization.arrayToDataTable(timeAndNote, true);
   //var range = [60,83]; //soprano
 
