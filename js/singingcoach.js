@@ -161,53 +161,32 @@ function startScale(){  // once the scale has started we let it complete
     //scale playback parameters
     const tempo = 40; //beats per minute
     const tBeat = 60 / tempo; //seconds per beat
-    const tTone = tBeat/4;  //tone sounds for a quarter of the scale note
-    const trf = 0.01; //rise fall time of tone
+    const tTone = tBeat/2;  //tone sounds for a quarter of the scale note
+    const trf = 0.005; //rise fall time of tone
     const toneOn=1; //on & off gains
     const toneOff=0.001;
     
     const scaleNotes = [notes.C4,notes.D4,notes.E4,notes.F4,notes.G4,notes.A4,notes.B4,notes.C5];
     
-    var osc = new Array(8); //8 oscillators
-    var gain = new Array(8); //gain blocks, to allow fade in/out
-    //TODO - wrap this in a class - see https://medium.com/@danagilliann/an-introduction-to-creating-music-in-the-browser-with-web-audio-api-1a8d65cc2375
-    osc[0] = audioContext.createOscillator();
-    osc[1] = audioContext.createOscillator();
-    osc[2] = audioContext.createOscillator();
-    osc[3] = audioContext.createOscillator();
-    osc[4] = audioContext.createOscillator();
-    osc[5] = audioContext.createOscillator();
-    osc[6] = audioContext.createOscillator();
-    osc[7] = audioContext.createOscillator();
+    var audioContext = new AudioContext(), oscillator, gain;
     
-    //gain blocks
-    gain[0] = audioContext.createGain();
-    gain[1] = audioContext.createGain();
-    gain[2] = audioContext.createGain();
-    gain[3] = audioContext.createGain();
-    gain[4] = audioContext.createGain();
-    gain[5] = audioContext.createGain();
-    gain[6] = audioContext.createGain();
-    gain[7] = audioContext.createGain();
-
-    //set osc frequencies and connect to gain blocks
-    for(i=0; i<8; i++){
-      osc[i].frequency.setValueAtTime(scaleNotes[i],audioContext.currentTime);
-      osc[i].connect(gain[i]);
-      osc[i].start();
-      gain[i].gain.setValueAtTime(0,audioContext.currentTime);
-      //gain[i].connect(audioContext.destination);
-      gain[i].connect(audioContext.analyser);
+    function playNote(frequency, startTime, endTime) {
+	  	gainNode = audioContext.createGain(); //to get smooth rise/fall
+      oscillator = audioContext.createOscillator();
+      oscillator.frequency.value=frequency;
+      oscillator.connect(gainNode);
+		  gainNode.connect(audioContext.destination);
+      gainNode.gain.exponentialRampToValueAtTime(toneOn,  startTime + trf);
+      gainNode.gain.exponentialRampToValueAtTime(toneOff, endTime+trf);
+      oscillator.start(startTime);
+      oscillator.stop(endTime);
     }
-    
-    //play
-    let now = audioContext.currentTime;
-    // NOW PLAY THE SCALE! Then stop
-    for(i=0; i<8; i++){
-      now = audioContext.currentTime;
-      gain[i].gain.exponentialRampToValueAtTime(toneOn,  now+i*tBeat + trf);
-      gain[i].gain.exponentialRampToValueAtTime(toneOff, now+i*tBeat + tTone+trf);
-      
+
+    var  now = audioContext.currentTime;
+    //play the scale (8 notes)
+    for(var i=0; i<8; i++){
+	    //console.log(i);
+      playNote(scaleNotes[i], now+i*tBeat, now + i*tBeat+tTone);
     }
     
     //isScale = false;
