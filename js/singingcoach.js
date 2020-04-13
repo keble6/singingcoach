@@ -42,7 +42,7 @@ SOFTWARE.
 //parameters for the chart table
 var chart_table_length=64;
 var chartReady = true;
-var timeAndNote = [[performance.now(),60],[performance.now()+1,61]]; //initial chart table - we will fill it from upDate function
+var timeAndNote = [[performance.now(),60,60],[performance.now()+1,61,61]]; //initial chart table - we will fill it from upDate function
 
 // load the chart's Google code and then call drawChart function
 google.charts.load('current', {'packages':['corechart']});
@@ -68,9 +68,9 @@ var mediaStreamSource = null;
 // new 11/4/20
 setTimeout(ifPlayingDrawChart, 100);
 function ifPlayingDrawChart() {
-  console.log('timeout function');
+  //console.log('timeout function');
   if(isVoice || isScale){ //voice or scale are running
-    console.log('timeout function and playing');
+    //console.log('timeout function and playing');
     drawChart();
   }
 }
@@ -78,7 +78,7 @@ function ifPlayingDrawChart() {
 /* functions for voice input */
 function error() {
     const errorMessage = 'navigator.MediaDevices.getUserMedia error: ' + error.message + ' ' + error.name;
-  console.log(errorMessage);
+  //console.log(errorMessage);
 }
 /************************************************ */
 
@@ -86,46 +86,36 @@ const constraints = window.constraints = {
   audio: true,
   video: false
 };
-/************************************************ */
-function getAudio() {
- //navigator.mediaDevices.getUserMedia(constraints).then(gotStream).catch(error);
- //REPLACED ABOVE LINE WITH FOLLOWING FROM https://github.com/webrtc/samples/tree/gh-pages/src/content/getusermedia/audio/js
-  navigator.mediaDevices.getUserMedia(constraints).then(gotStream).catch(error);
-}
-/************************************************ */
 
+/*********Voice input setup********** */
 function gotStream(stream) {
   //console.log('in gotStream');
   const audioTracks = stream.getAudioTracks();
-  console.log('Got stream with constraints:', constraints);
-  console.log('Using audio device: ' + audioTracks[0].label);
+
+  //console.log('Using audio device: ' + audioTracks[0].label);
   stream.oninactive = function() {
-    console.log('Stream ended');
+    //console.log('Stream ended');
   };
   window.stream = stream; // make variable available to browser console
   //audio.srcObject = stream;
   // Create an AudioNode from the stream.
     mediaStreamSource = audioContext.createMediaStreamSource(stream);
     // Connect it to the destination.
-    analyser = audioContext.createAnalyser();
-    analyser.fftSize = 2048;
-    mediaStreamSource.connect( analyser );
-    updatePitch();
+    analyserVoice = audioContext.createAnalyser();
+    analyserVoice.fftSize = 2048;
+    mediaStreamSource.connect( analyserVoice );
+    updatePitchVoice();
 }
 
-/********************* Scale functions *********************/
-function playNote(startTime, duration, pitch) { //new oscillator created for every note (allows an effective restart)
-  const oscillator = audioContext.createOscillator();
-  
-  analyser = audioContext.createAnalyser();
-  analyser.fftSize = 2048;
-  oscillator.connect(analyser);
-  analyser.connect(audioContext.destination);
-  oscillator.frequency.value = pitch;
-  oscillator.type = 'sine';
-  oscillator.start(startTime);
-  oscillator.stop(startTime + duration);
-}
+/********************* SCALE Globals ****************************/
+
+//scale playback parameters
+const tempo = 40; //beats per minute
+const tBeat = 60 / tempo; //seconds per beat
+const tTone = tBeat/2;  //tone sounds for a quarter of the scale note
+const trf = 0.005; //rise fall time of tone
+const toneOn=1; //on & off gains
+const toneOff=0.001;
 
 /*************** notes ************/
 const notes = {
@@ -139,7 +129,19 @@ const notes = {
     C7: 2093.005, Db7: 2217.461, D7: 2349.318, Eb7: 2489.016, E7: 2637.021, F7: 2793.826, Gb7: 2959.955, G7: 3135.964, Ab7: 3322.438, A7: 3520, Bb7: 3729.31, B7: 3951.066
 };
 
-
+function playNote(audioContext,frequency, startTime, endTime) {
+	  	gainNode = audioContext.createGain(); //to get smooth rise/fall
+      oscillator = audioContext.createOscillator();
+      oscillator.frequency.value=frequency;
+      oscillator.connect(gainNode);
+		  gainNode.connect(analyserScale); //analyser is global
+		  analyserScale.connect(audioContext.destination);
+      gainNode.gain.exponentialRampToValueAtTime(toneOn,  startTime + trf);
+      gainNode.gain.exponentialRampToValueAtTime(toneOff, endTime+trf);
+      oscillator.start(startTime);
+      oscillator.stop(endTime);
+    }
+    
 function startScale(){  // once the scale has started we let it complete
   //new plan: 8 oscillators, then a gainNode conected to them in sequence
   if (isScale) {
@@ -154,39 +156,18 @@ function startScale(){  // once the scale has started we let it complete
   else {
     isScale = true;
     audioContext = new AudioContext();
-    analyser = audioContext.createAnalyser();
-    analyser.fftSize = 2048;
-    analyser.connect(audioContext.destination);
-    
-    //scale playback parameters
-    const tempo = 40; //beats per minute
-    const tBeat = 60 / tempo; //seconds per beat
-    const tTone = tBeat/2;  //tone sounds for a quarter of the scale note
-    const trf = 0.005; //rise fall time of tone
-    const toneOn=1; //on & off gains
-    const toneOff=0.001;
-    
+    analyserScale = audioContext.createAnalyser();
+    analyserScale.fftSize = 2048;
+    analyserScale.connect(audioContext.destination);
+    //the following scale notes will have to be user selectable
+    // need to combine MIDI notes list in drawChart with notes list above
     const scaleNotes = [notes.C4,notes.D4,notes.E4,notes.F4,notes.G4,notes.A4,notes.B4,notes.C5];
     
-    var audioContext = new AudioContext(), oscillator, gain;
-    
-    function playNote(frequency, startTime, endTime) {
-	  	gainNode = audioContext.createGain(); //to get smooth rise/fall
-      oscillator = audioContext.createOscillator();
-      oscillator.frequency.value=frequency;
-      oscillator.connect(gainNode);
-		  gainNode.connect(audioContext.destination);
-      gainNode.gain.exponentialRampToValueAtTime(toneOn,  startTime + trf);
-      gainNode.gain.exponentialRampToValueAtTime(toneOff, endTime+trf);
-      oscillator.start(startTime);
-      oscillator.stop(endTime);
-    }
-
     var  now = audioContext.currentTime;
     //play the scale (8 notes)
     for(var i=0; i<8; i++){
 	    //console.log(i);
-      playNote(scaleNotes[i], now+i*tBeat, now + i*tBeat+tTone);
+      playNote(audioContext,scaleNotes[i], now+i*tBeat, now + i*tBeat+tTone);
     }
     
     //isScale = false;
@@ -202,7 +183,7 @@ function startScale(){  // once the scale has started we let it complete
     So just try adding the pitch to the other used array
      - do this by connecting the oscillators to analyser, then analyser to destimation
     */
-    updatePitch();
+    updatePitchScale();
 
     return "stop";
     }
@@ -274,7 +255,8 @@ function toggleVoiceInput() {
     else {
       isVoice = true;
       audioContext = new AudioContext();
-      getAudio();
+      //got and get the audio stream
+      navigator.mediaDevices.getUserMedia(constraints).then(gotStream).catch(error);
     }
 }
 
@@ -284,22 +266,16 @@ var tracks = null;
 var buflen = 1024;
 var buf = new Float32Array( buflen );
 
-var noteStrings = ["C4", "C#4", "D4", "D#4", "E4", "F4", "F#4", "G4", "G#4", "A4", "A#4", "B4"];
-
-
 function frequencyFromNoteNumber( note ) {
 	return 440 * Math.pow(2,(note-69)/12);
 }
 
-function centsOffFromPitch( frequency, note ) {
-	return Math.floor( 1200 * Math.log( frequency / frequencyFromNoteNumber( note ))/Math.log(2) );
-}
-/************************************************ */
-
+/**************autoCorrelate********************* */
 var MIN_SAMPLES = 0;  // will be initialized when AudioContext is created.
 var MIN_AUDIO = 0.01;  // below this amplitude threshold we ignore the audio
 
 var GOOD_ENOUGH_CORRELATION = 0.9; // this is the "bar" for how close a correlation needs to be
+
 /************************************************ */
 function autoCorrelate( buf, sampleRate ) {
   //NOTE: the sampleRate parameter passed here comes from the default for the analyser (using analyser.sampleRate)
@@ -322,7 +298,6 @@ function autoCorrelate( buf, sampleRate ) {
 	var lastCorrelation=1;
 	for (var offset = MIN_SAMPLES; offset < MAX_SAMPLES; offset++) {
 		var correlation = 0;
-
 		for (var i=0; i<MAX_SAMPLES; i++) {
 			correlation += Math.abs((buf[i])-(buf[i+offset]));
 		}
@@ -350,39 +325,30 @@ function autoCorrelate( buf, sampleRate ) {
 
 
 
-/*****************************************************/
+/******************updatePitchVoice**********************/
 //smoothing parameter for low pass filter in updatePitch
 //parameters
 var smoothing  = 5;       // or whatever is desired
 var lastUpdate = new Date;
 
-
-function updatePitch( time ) {
+/*********************** updatePitchVoice *********************/
+function updatePitchVoice( time ) {
 	var cycles = new Array;
-	analyser.getFloatTimeDomainData( buf );
+	analyserVoice.getFloatTimeDomainData( buf );
 	var ac = autoCorrelate( buf, audioContext.sampleRate );
-  console.log('ac',ac);
  	if (ac == -1) {
-		//new - blank the chart y value
 		isSquelched = true;
- 	} else {
+ 	}
+ 	else {
  	  isSquelched = false;
-
 	 	pitch = ac;
-
-     var noteFloat = 12 * (Math.log( pitch / 440 )/Math.log(2) )+69;
-     
-     var note = Math.round( noteFloat );
-     //console.log('note', noteFloat, note);
-		
-
+    var noteFloat = 12 * (Math.log( pitch / 440 )/Math.log(2) )+69;
+    var note = Math.round( noteFloat );
     //send note to chart
     // first, fill up the table - if not isSquelched
-    console.log('squelched?',isSquelched);
     if(!isSquelched){
-      console.log('filling');
       if(timeAndNote.length < chart_table_length){
-        timeAndNote.push([performance.now(),noteFloat]);
+        timeAndNote.push([performance.now(),noteFloat,0]);
       }
       else { //TODO - add rate-independence by scaling smoothing variable
         // now filter the new value, depending on past filtered value
@@ -390,27 +356,63 @@ function updatePitch( time ) {
         lastValue = timeAndNote[chart_table_length - 1][1]; //last note
         timeAndNote.shift();                                //shift down
         var newValue = lastValue + (noteFloat-lastValue)/smoothing;
-        timeAndNote.push([performance.now(),newValue]);      //filtered value
-        console.log('raw',noteFloat,'filtered',newValue);
-        //timeAndNote.push([performance.now(),noteFloat]);
+        timeAndNote.push([performance.now(),newValue, 0]);      //filtered value
       }
       
-
-      //console.log(timeAndNote);
       if(chartReady){
         chartReady = false;
         drawChart();
-    
       }
-    
     }
-
 	}
-	if (!window.requestAnimationFrame)
+	if (!window.requestAnimationFrame){
 		window.requestAnimationFrame = window.webkitRequestAnimationFrame;
-	rafID = window.requestAnimationFrame( updatePitch );
+	}
+	if (isVoice) {
+	  rafID = window.requestAnimationFrame( updatePitchVoice );
+  }
+}
 
-	
+/*********************** updatePitchScale *********************/
+function updatePitchScale( time ) {
+	var cycles = new Array;
+	analyserScale.getFloatTimeDomainData( buf );
+	var ac = autoCorrelate( buf, audioContext.sampleRate );
+ 	if (ac == -1) {
+		isSquelched = true;
+ 	}
+ 	else {
+ 	  isSquelched = false;
+	 	pitch = ac;
+    var noteFloat = 12 * (Math.log( pitch / 440 )/Math.log(2) )+69;
+    var note = Math.round( noteFloat );
+    //send note to chart
+    // first, fill up the table - if not isSquelched
+    if(!isSquelched){
+      if(timeAndNote.length < chart_table_length){
+        timeAndNote.push([performance.now(),0,noteFloat]);
+      }
+      else { //TODO - add rate-independence by scaling smoothing variable
+        // now filter the new value, depending on past filtered value
+        // concept is from http://phrogz.net/js/framerate-independent-low-pass-filter.html
+        lastValue = timeAndNote[chart_table_length - 1][2]; //last note
+        timeAndNote.shift();                                //shift down
+        var newValue = lastValue + (noteFloat-lastValue)/smoothing;
+        timeAndNote.push([performance.now(),0,newValue]);      //filtered value
+      }
+      
+      if(chartReady){
+        chartReady = false;
+        drawChart();
+      }
+    }
+	}
+	if (!window.requestAnimationFrame){
+		window.requestAnimationFrame = window.webkitRequestAnimationFrame;
+	}
+	if (isScale) {
+	  rafID = window.requestAnimationFrame( updatePitchScale );
+  }
 }
 
 
@@ -420,7 +422,7 @@ function updatePitch( time ) {
 /************************************************ */
 
 function drawChart() {
-  console.log('drawchart');
+  //console.log('drawchart');
   var data = google.visualization.arrayToDataTable(timeAndNote, true);
   //var range = [60,83]; //soprano
 
