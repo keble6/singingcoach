@@ -36,56 +36,91 @@ SOFTWARE.
   Accompaniment - scale/single note/sequence and note length and bpm
   */
 
-// draw the chart every 100ms
-
-
+/************************ INITIALISATION ****************************/
 //parameters for the chart table
-var chart_table_length=64;
+const tTick = 200; //update rate of chart in ms
+const chart_table_length=64;
+var chartTime;
 var chartReady = true;
-var timeAndNote = [[performance.now(),60,60],[performance.now()+1,61,61]]; //initial chart table - we will fill it from upDate function
+var voiceArray = [60,64]; //initial chart tables
+var scaleArray = [60,65];
+var timeAndNote = [[performance.now(),60,60],[performance.now()+tTick,61,62]];
 
+
+/********************* AUDIO Globals ****************************/
+window.AudioContext = window.AudioContext || window.webkitAudioContext;
+
+var isSquelched=true; //true when audio intput is too low
+var audioContext = null;
+var isVoice = false;// flags for each type of input
+var isScale = false;
+var sourceNode = null;
+var analyser = null;
+//var analyserScale = null;
+var theBuffer = null;
+var mediaStreamSource = null;
+const constraints = window.constraints = {
+  audio: true,
+  video: false
+};
+/************************************************ */
+var rafID = null;
+var tracks = null;
+var buflen = 1024;
+var buf = new Float32Array( buflen );
+/******************updatePitchVoice**********************/
+//smoothing parameter for low pass filter in updatePitch
+var smoothing  = 5;       // or whatever is desired
+var lastUpdate = new Date;
+
+/********************* SCALE Globals ****************************/
+//scale playback parameters
+const tempo = 40; //beats per minute
+const tBeat = 60 / tempo; //seconds per beat
+const tTone = tBeat/2;  //tone sounds for a quarter of the scale note
+const trf = 0.005; //rise fall time of tone
+const toneOn=1; //on & off gains
+const toneOff=0.001;
+
+/*************** notes ************/
+const notes = {
+    C0: 16.351, Db0: 17.324, D0: 18.354, Eb0: 19.445, E0: 20.601, F0: 21.827, Gb0: 23.124, G0: 24.499, Ab0: 25.956, A0: 27.5, Bb0: 29.135, B0: 30.868,
+    C1: 32.703, Db1: 34.648, D1: 36.708, Eb1: 38.891, E1: 41.203, F1: 43.654, Gb1: 46.249, G1: 48.999, Ab1: 51.913, A1: 55, Bb1: 58.27, B1: 61.735,
+    C2: 65.406, Db2: 69.296, D2: 73.416, Eb2: 77.782, E2: 82.407, F2: 87.307, Gb2: 92.499, G2: 97.999, Ab2: 103.826, A2: 110, Bb2: 116.541, B2: 123.471,
+    C3: 130.813, Db3: 138.591, D3: 146.832, Eb3: 155.563, E3: 164.814, F3: 174.614, Gb3: 184.997, G3: 195.998, Ab3: 207.652, A3: 220, Bb3: 233.082, B3: 246.942,
+    C4: 261.626, Db4: 277.183, D4: 293.665, Eb4: 311.127, E4: 329.628, F4: 349.228, Gb4: 369.994, G4: 391.995, Ab4: 415.305, A4: 440, Bb4: 466.164, B4: 493.883,
+    C5: 523.251, Db5: 554.365, D5: 587.33, Eb5: 622.254, E5: 659.255, F5: 698.456, Gb5: 739.989, G5: 783.991, Ab5: 830.609, A5: 880, Bb5: 932.328, B5: 987.767,
+    C6: 1046.502, Db6: 1108.731, D6: 1174.659, Eb6: 1244.508, E6: 1318.51, F6: 1396.913, Gb6: 1479.978, G6: 1567.982, Ab6: 1661.219, A6: 1760, Bb6: 1864.655, B6: 1975.533,
+    C7: 2093.005, Db7: 2217.461, D7: 2349.318, Eb7: 2489.016, E7: 2637.021, F7: 2793.826, Gb7: 2959.955, G7: 3135.964, Ab7: 3322.438, A7: 3520, Bb7: 3729.31, B7: 3951.066
+};
+
+/**************autoCorrelate globals********************* */
+var MIN_SAMPLES = 0;  // will be initialized when AudioContext is created.
+var MIN_AUDIO = 0.01;  // below this amplitude threshold we ignore the audio
+var GOOD_ENOUGH_CORRELATION = 0.9; // this is the "bar" for how close a correlation needs to be
+
+/***************** START **********************/
 // load the chart's Google code and then call drawChart function
 google.charts.load('current', {'packages':['corechart']});
 google.charts.setOnLoadCallback(drawChart);
 
-// now run
-window.AudioContext = window.AudioContext || window.webkitAudioContext;
+// new 14/4/20
+setInterval(UpdateLoop, tTick);
 
-var isSquelched=true; //true when audio intput is too low. It is set/reset by updatePitch, depending on ac from autoCorrelate()
-var audioContext = null;
-// new flags for each type of input
-var isVoice = false;
-var isScale = false;
-var isOsc = false;
-
-var sourceNode = null;
-var oscillator = null;
-var analyser = null;
-var theBuffer = null;
-var DEBUGCANVAS = null;
-var mediaStreamSource = null;
-
-// new 11/4/20
-setTimeout(ifPlayingDrawChart, 100);
-function ifPlayingDrawChart() {
-  //console.log('timeout function');
-  if(isVoice || isScale){ //voice or scale are running
-    //console.log('timeout function and playing');
-    drawChart();
-  }
+function UpdateLoop() {
+  chartTime=performance.now();
+  updatePitchScale();
+  updatePitchVoice();
+  drawChart();
 }
+
+
 /************************************************ */
 /* functions for voice input */
 function error() {
     const errorMessage = 'navigator.MediaDevices.getUserMedia error: ' + error.message + ' ' + error.name;
   //console.log(errorMessage);
 }
-/************************************************ */
-
-const constraints = window.constraints = {
-  audio: true,
-  video: false
-};
 
 /*********Voice input setup********** */
 function gotStream(stream) {
@@ -107,27 +142,6 @@ function gotStream(stream) {
     updatePitchVoice();
 }
 
-/********************* SCALE Globals ****************************/
-
-//scale playback parameters
-const tempo = 40; //beats per minute
-const tBeat = 60 / tempo; //seconds per beat
-const tTone = tBeat/2;  //tone sounds for a quarter of the scale note
-const trf = 0.005; //rise fall time of tone
-const toneOn=1; //on & off gains
-const toneOff=0.001;
-
-/*************** notes ************/
-const notes = {
-    C0: 16.351, Db0: 17.324, D0: 18.354, Eb0: 19.445, E0: 20.601, F0: 21.827, Gb0: 23.124, G0: 24.499, Ab0: 25.956, A0: 27.5, Bb0: 29.135, B0: 30.868,
-    C1: 32.703, Db1: 34.648, D1: 36.708, Eb1: 38.891, E1: 41.203, F1: 43.654, Gb1: 46.249, G1: 48.999, Ab1: 51.913, A1: 55, Bb1: 58.27, B1: 61.735,
-    C2: 65.406, Db2: 69.296, D2: 73.416, Eb2: 77.782, E2: 82.407, F2: 87.307, Gb2: 92.499, G2: 97.999, Ab2: 103.826, A2: 110, Bb2: 116.541, B2: 123.471,
-    C3: 130.813, Db3: 138.591, D3: 146.832, Eb3: 155.563, E3: 164.814, F3: 174.614, Gb3: 184.997, G3: 195.998, Ab3: 207.652, A3: 220, Bb3: 233.082, B3: 246.942,
-    C4: 261.626, Db4: 277.183, D4: 293.665, Eb4: 311.127, E4: 329.628, F4: 349.228, Gb4: 369.994, G4: 391.995, Ab4: 415.305, A4: 440, Bb4: 466.164, B4: 493.883,
-    C5: 523.251, Db5: 554.365, D5: 587.33, Eb5: 622.254, E5: 659.255, F5: 698.456, Gb5: 739.989, G5: 783.991, Ab5: 830.609, A5: 880, Bb5: 932.328, B5: 987.767,
-    C6: 1046.502, Db6: 1108.731, D6: 1174.659, Eb6: 1244.508, E6: 1318.51, F6: 1396.913, Gb6: 1479.978, G6: 1567.982, Ab6: 1661.219, A6: 1760, Bb6: 1864.655, B6: 1975.533,
-    C7: 2093.005, Db7: 2217.461, D7: 2349.318, Eb7: 2489.016, E7: 2637.021, F7: 2793.826, Gb7: 2959.955, G7: 3135.964, Ab7: 3322.438, A7: 3520, Bb7: 3729.31, B7: 3951.066
-};
 
 function playNote(audioContext,frequency, startTime, endTime) {
 	  	gainNode = audioContext.createGain(); //to get smooth rise/fall
@@ -142,8 +156,7 @@ function playNote(audioContext,frequency, startTime, endTime) {
       oscillator.stop(endTime);
     }
     
-function startScale(){  // once the scale has started we let it complete
-  //new plan: 8 oscillators, then a gainNode conected to them in sequence
+function startScale(){  // once the scale has started we let it complete (prefer to stop though)
   if (isScale) {
     isScale = false;
     if (!window.cancelAnimationFrame){
@@ -169,73 +182,11 @@ function startScale(){  // once the scale has started we let it complete
 	    //console.log(i);
       playNote(audioContext,scaleNotes[i], now+i*tBeat, now + i*tBeat+tTone);
     }
-    
-    //isScale = false;
-    //NEXT: ADD PITCH TO CHART ARRAY
-    /* actually we have to have separate updatePitch for scale and for
-    voice (live input) - cal them updatePitchScale and updatePitchVoice.
-    Asynchronously there is a timer which updates the pitch from each source
-    (if both Scale and Voice are active) and also the Chart
-    
-    TEST Chartt timer first - say at 100ms update rate
-    
-    HMM, MIGHT NOT BE TRUE
-    So just try adding the pitch to the other used array
-     - do this by connecting the oscillators to analyser, then analyser to destimation
-    */
     updatePitchScale();
-
     return "stop";
     }
 }
-/************************************************ */
 
-function toggleOscillator() {
-  /**** This is now an FM source ***************/
-    if (isOsc) {
-        
-        isOsc = false;
-        oscillator.stop(0);
-        modulator.stop(0);
-        analyser = null;
-        oscillaor = null;
-        modulator = null;
-        if (!window.cancelAnimationFrame) {
-          window.cancelAnimationFrame = window.webkitCancelAnimationFrame;
-        }
-        window.cancelAnimationFrame( rafID );
-        return "play oscillator";
-    }
-    else {
-    isOsc = true;
-    audioContext = new AudioContext();
-    // frequency modulator
-    analyser = audioContext.createAnalyser();
-    analyser.fftSize = 2048;
-    oscillator = audioContext.createOscillator();
-    oscillator.frequency.value = 493.88; //B4
-
-    modulator = audioContext.createOscillator();
-    modulator.frequency.value=0.1;
-    modulator.type = 'triangle';
-
-    let modulationGain = audioContext.createGain();
-    modulationGain.gain.value  = 100;
-
-    /* connect everything up */
-    modulator.connect(modulationGain);
-    modulationGain.connect(oscillator.frequency);
-    oscillator.connect(analyser);
-
-    oscillator.start(0);
-    modulator.start(0);
-    
-    analyser.connect( audioContext.destination );
-    updatePitch();
-
-    return "stop";
-    }
-}
 /************************************************ */
 /* TODO */
 /** TOGGLE does not work - should change to use MediaStreamTrack
@@ -260,21 +211,11 @@ function toggleVoiceInput() {
     }
 }
 
-/************************************************ */
-var rafID = null;
-var tracks = null;
-var buflen = 1024;
-var buf = new Float32Array( buflen );
-
 function frequencyFromNoteNumber( note ) {
 	return 440 * Math.pow(2,(note-69)/12);
 }
 
-/**************autoCorrelate********************* */
-var MIN_SAMPLES = 0;  // will be initialized when AudioContext is created.
-var MIN_AUDIO = 0.01;  // below this amplitude threshold we ignore the audio
 
-var GOOD_ENOUGH_CORRELATION = 0.9; // this is the "bar" for how close a correlation needs to be
 
 /************************************************ */
 function autoCorrelate( buf, sampleRate ) {
@@ -325,12 +266,6 @@ function autoCorrelate( buf, sampleRate ) {
 
 
 
-/******************updatePitchVoice**********************/
-//smoothing parameter for low pass filter in updatePitch
-//parameters
-var smoothing  = 5;       // or whatever is desired
-var lastUpdate = new Date;
-
 /*********************** updatePitchVoice *********************/
 function updatePitchVoice( time ) {
 	var cycles = new Array;
@@ -347,30 +282,30 @@ function updatePitchVoice( time ) {
     //send note to chart
     // first, fill up the table - if not isSquelched
     if(!isSquelched){
-      if(timeAndNote.length < chart_table_length){
-        timeAndNote.push([performance.now(),noteFloat,0]);
+      if(voiceArray.length < chart_table_length){
+        voiceArray.push(noteFloat);
       }
       else { //TODO - add rate-independence by scaling smoothing variable
         // now filter the new value, depending on past filtered value
         // concept is from http://phrogz.net/js/framerate-independent-low-pass-filter.html
-        lastValue = timeAndNote[chart_table_length - 1][1]; //last note
-        timeAndNote.shift();                                //shift down
+        lastValue = voiceArray[chart_table_length - 1]; //last note
+        voiceArray.shift();                                //shift down
         var newValue = lastValue + (noteFloat-lastValue)/smoothing;
-        timeAndNote.push([performance.now(),newValue, 0]);      //filtered value
+        voiceArray.push(newValue);      //filtered value
       }
       
-      if(chartReady){
+      /*if(chartReady){
         chartReady = false;
-        drawChart();
-      }
+        drawChart(chartTime);
+      }*/
     }
 	}
 	if (!window.requestAnimationFrame){
 		window.requestAnimationFrame = window.webkitRequestAnimationFrame;
 	}
-	if (isVoice) {
-	  rafID = window.requestAnimationFrame( updatePitchVoice );
-  }
+	/*if (isVoice) {
+	  rafID = window.requestAnimationFrame( updateLoop );
+  }*/
 }
 
 /*********************** updatePitchScale *********************/
@@ -389,30 +324,30 @@ function updatePitchScale( time ) {
     //send note to chart
     // first, fill up the table - if not isSquelched
     if(!isSquelched){
-      if(timeAndNote.length < chart_table_length){
-        timeAndNote.push([performance.now(),0,noteFloat]);
+      if(scaleArray.length < chart_table_length){
+        scaleArray.push(noteFloat);
       }
       else { //TODO - add rate-independence by scaling smoothing variable
         // now filter the new value, depending on past filtered value
         // concept is from http://phrogz.net/js/framerate-independent-low-pass-filter.html
-        lastValue = timeAndNote[chart_table_length - 1][2]; //last note
-        timeAndNote.shift();                                //shift down
+        lastValue = scaleArray[chart_table_length - 1]; //last note
+        scaleArray.shift();                                //shift down
         var newValue = lastValue + (noteFloat-lastValue)/smoothing;
-        timeAndNote.push([performance.now(),0,newValue]);      //filtered value
+        scaleArray.push(newValue);      //filtered value
       }
       
-      if(chartReady){
+      /*if(chartReady){
         chartReady = false;
-        drawChart();
-      }
+        drawChart(chartTime);
+      }*/
     }
 	}
 	if (!window.requestAnimationFrame){
 		window.requestAnimationFrame = window.webkitRequestAnimationFrame;
 	}
-	if (isScale) {
+	/*if (isScale) {
 	  rafID = window.requestAnimationFrame( updatePitchScale );
-  }
+  }*/
 }
 
 
@@ -422,13 +357,16 @@ function updatePitchScale( time ) {
 /************************************************ */
 
 function drawChart() {
-  //console.log('drawchart');
+  //now assemble the scale and voice arrays
+  var voiceNote = voiceArray[voiceArray.length - 1];
+  var scaleNote = scaleArray[scaleArray.length - 1];
+  //console.log(Math.round(currentTime), scaleNote);
+  timeAndNote.push([chartTime, voiceNote, scaleNote]) ;
   var data = google.visualization.arrayToDataTable(timeAndNote, true);
-  //var range = [60,83]; //soprano
 
   var options = {
     title: 'note vs time',
-    curveType: 'function',
+    curveType: 'none',
     legend: { position: 'bottom' },
     hAxis: { //remove x axis clutter so it looks like a moving display
       ticks: [],
