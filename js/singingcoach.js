@@ -30,7 +30,9 @@ SOFTWARE.
 }*/
 
 /* TO DOs */
-/* A drawChart timer - so that we only draw the chart at a fixed rate */
+/* blank chart when squelched */
+/* start/stop for inputs */
+/* improved gui buttons */
 /* A GUI to choose:
   Vocal range - 2 octaves?
   Accompaniment - scale/single note/sequence and note length and bpm
@@ -55,8 +57,8 @@ var audioContext = null;
 var isVoice = false;// flags for each type of input
 var isScale = false;
 var sourceNode = null;
-var analyser = null;
-//var analyserScale = null;
+var analyserVoice = null;
+var analyserScale = null;
 var theBuffer = null;
 var mediaStreamSource = null;
 const constraints = window.constraints = {
@@ -104,14 +106,21 @@ var GOOD_ENOUGH_CORRELATION = 0.9; // this is the "bar" for how close a correlat
 google.charts.load('current', {'packages':['corechart']});
 google.charts.setOnLoadCallback(drawChart);
 
-// new 14/4/20
+// The overall timiong loop - runs every tTick ms
 setInterval(UpdateLoop, tTick);
 
 function UpdateLoop() {
-  chartTime=performance.now();
-  updatePitchScale();
-  updatePitchVoice();
-  drawChart();
+  if(isScale || isVoice){
+    chartTime=performance.now();
+    if(isScale) {
+      updatePitchScale();
+    }
+    if(isVoice){
+      updatePitchVoice();
+    }
+    drawChart();
+  }
+  
 }
 
 
@@ -179,7 +188,7 @@ function startScale(){  // once the scale has started we let it complete (prefer
     var  now = audioContext.currentTime;
     //play the scale (8 notes)
     for(var i=0; i<8; i++){
-	    //console.log(i);
+	    //console.log('start to paly notes');
       playNote(audioContext,scaleNotes[i], now+i*tBeat, now + i*tBeat+tTone);
     }
     updatePitchScale();
@@ -370,7 +379,11 @@ function drawChart() {
     legend: { position: 'bottom' },
     hAxis: { //remove x axis clutter so it looks like a moving display
       ticks: [],
-      gridlines: {color:'transparent'}
+      gridlines: {color:'transparent'},
+      viewWindow: { //thsi gives a "moving" chart
+        min: chartTime-64*tTick,
+        max: chartTime
+      },
     },
     vAxis: {
       viewWindow: {min: 59, max: 81},
