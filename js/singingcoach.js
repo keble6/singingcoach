@@ -40,7 +40,7 @@ SOFTWARE.
 
 /************************ INITIALISATION ****************************/
 //parameters for the chart table
-const tTick = 200; //update rate of chart in ms
+const tTick = 300; //update rate of chart in ms
 const chart_table_length=64;
 var chartTime;
 var chartReady = true;
@@ -65,6 +65,10 @@ const constraints = window.constraints = {
   audio: true,
   video: false
 };
+/**************autoCorrelate globals********************* */
+var MIN_SAMPLES = 0;  // will be initialized when AudioContext is created.
+var MIN_AUDIO = 0.005;  // below this amplitude threshold we ignore the audio
+var GOOD_ENOUGH_CORRELATION = 0.9; // this is the "bar" for how close a correlation needs to be
 /************************************************ */
 var rafID = null;
 var tracks = null;
@@ -72,7 +76,7 @@ var buflen = 1024;
 var buf = new Float32Array( buflen );
 /******************updatePitchVoice**********************/
 //smoothing parameter for low pass filter in updatePitch
-var smoothing  = 5;       // or whatever is desired
+var smoothing  = 20;       // or whatever is desired
 var lastUpdate = new Date;
 
 /********************* SCALE Globals ****************************/
@@ -96,10 +100,7 @@ const notes = {
     C7: 2093.005, Db7: 2217.461, D7: 2349.318, Eb7: 2489.016, E7: 2637.021, F7: 2793.826, Gb7: 2959.955, G7: 3135.964, Ab7: 3322.438, A7: 3520, Bb7: 3729.31, B7: 3951.066
 };
 
-/**************autoCorrelate globals********************* */
-var MIN_SAMPLES = 0;  // will be initialized when AudioContext is created.
-var MIN_AUDIO = 0.01;  // below this amplitude threshold we ignore the audio
-var GOOD_ENOUGH_CORRELATION = 0.9; // this is the "bar" for how close a correlation needs to be
+
 
 /***************** START **********************/
 // load the chart's Google code and then call drawChart function
@@ -282,6 +283,8 @@ function updatePitchVoice( time ) {
 	var ac = autoCorrelate( buf, audioContext.sampleRate );
  	if (ac == -1) {
 		isSquelched = true;
+    voiceArray.push(null);
+		
  	}
  	else {
  	  isSquelched = false;
@@ -289,25 +292,22 @@ function updatePitchVoice( time ) {
     var noteFloat = 12 * (Math.log( pitch / 440 )/Math.log(2) )+69;
     var note = Math.round( noteFloat );
     //send note to chart
-    // first, fill up the table - if not isSquelched
-    if(!isSquelched){
-      if(voiceArray.length < chart_table_length){
+    // first, fill up the table
+    
+    if(voiceArray.length < chart_table_length){
         voiceArray.push(noteFloat);
-      }
-      else { //TODO - add rate-independence by scaling smoothing variable
-        // now filter the new value, depending on past filtered value
-        // concept is from http://phrogz.net/js/framerate-independent-low-pass-filter.html
-        lastValue = voiceArray[chart_table_length - 1]; //last note
-        voiceArray.shift();                                //shift down
-        var newValue = lastValue + (noteFloat-lastValue)/smoothing;
-        voiceArray.push(newValue);      //filtered value
-      }
-      
-      /*if(chartReady){
-        chartReady = false;
-        drawChart(chartTime);
-      }*/
     }
+    else { //TODO - add rate-independence by scaling smoothing variable
+      // now filter the new value, depending on past filtered value
+      // concept is from http://phrogz.net/js/framerate-independent-low-pass-filter.html
+      lastValue = voiceArray[chart_table_length - 1]; //last note
+      voiceArray.shift();                                //shift down
+      var newValue = lastValue + (noteFloat-lastValue)/smoothing;
+      voiceArray.push(newValue);      //filtered value
+      console.log(chartTime, newValue);
+    }
+      
+    
 	}
 	if (!window.requestAnimationFrame){
 		window.requestAnimationFrame = window.webkitRequestAnimationFrame;
@@ -386,9 +386,21 @@ function drawChart() {
       },
     },
     vAxis: {
-      viewWindow: {min: 59, max: 81},
+      viewWindow: {min: 46, max: 81},
       
       ticks: [   // this table is based on Scientific Pitch Notation - which is NOT universal (some change the octave number at A!)
+      {v: 48, f: 'C3'},
+      {v: 49, f: 'C♯3/D♭3'},
+      {v: 50, f: 'D3'},
+      {v: 51, f: 'D♯3/E♭3'},
+      {v: 52, f: 'E3'},
+      {v: 53, f: 'F3'},
+      {v: 54, f: 'F♯3/G♭3'},
+      {v: 55, f: 'G3'},
+      {v: 56, f: 'G♯3/A♭3'},
+      {v: 57, f: 'A3'},
+      {v: 58, f: 'A♯3/B♭3'},
+      {v: 59, f: 'B3'},
       {v: 60, f: 'C4'},
       {v: 61, f: 'C♯4/D♭4'},
       {v: 62, f: 'D4'},
@@ -398,7 +410,7 @@ function drawChart() {
       {v: 66, f: 'F♯4/G♭4'},
       {v: 67, f: 'G5'},
       {v: 68, f: 'G♯4/A♭4'},
-      {v: 69, f: 'A5'},
+      {v: 69, f: 'A4'},
       {v: 70, f: 'A♯4/B♭4'},
       {v: 71, f: 'B4'},
       {v: 72, f: 'C5'},
