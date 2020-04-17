@@ -1,42 +1,4 @@
-/* My code is based on: cwilso/Pitchdetect
-
-The MIT License (MIT)
-
-Copyright (c) 2014 Chris Wilson
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-*/
-/* added to check if gUM (getUserMedia) is supported by browser*/
-/*if (navigator.mediaDevices) {
-			console.log('getUserMedia supported.');
-} else {
-			console.log('getUserMedia not supported on your browser!');
-}*/
-
-/* TO DOs */
-/* blank chart when squelched */
-/* start/stop for inputs */
-/* improved gui buttons */
-/* A GUI to choose:
-  Vocal range - 2 octaves?
-  Accompaniment - scale/single note/sequence and note length and bpm
-  */
+/* This branch uases the Tartini pitch detector   */
 
 /************************ INITIALISATION ****************************/
 //parameters for the chart table
@@ -48,36 +10,24 @@ var voiceArray = [60,64]; //initial chart tables
 var scaleArray = [60,65];
 var timeAndNote = [[performance.now(),60,60],[performance.now()+tTick,61,62]];
 
-
-/********************* AUDIO Globals ****************************/
-window.AudioContext = window.AudioContext || window.webkitAudioContext;
-
-var isSquelched=true; //true when audio intput is too low
-var audioContext = null;
-var isVoice = false;// flags for each type of input
+/****************** Audio ********************/
+var buflen = 1024;
+var bufScale = new Float32Array( buflen );
+var bufVoice = new Float32Array( buflen );
+var isVoice = false;
 var isScale = false;
-var sourceNode = null;
 var analyserVoice = null;
 var analyserScale = null;
-var theBuffer = null;
-var mediaStreamSource = null;
+var noteFloat = null;
+
 const constraints = window.constraints = {
   audio: true,
   video: false
 };
-/**************autoCorrelate globals********************* */
-var MIN_SAMPLES = 0;  // will be initialized when AudioContext is created.
-var MIN_AUDIO = 0.005;  // below this amplitude threshold we ignore the audio
-var GOOD_ENOUGH_CORRELATION = 0.9; // this is the "bar" for how close a correlation needs to be
-/************************************************ */
+
+/*** MISC ****/
 var rafID = null;
-var tracks = null;
-var buflen = 1024;
-var buf = new Float32Array( buflen );
-/******************updatePitchVoice**********************/
-//smoothing parameter for low pass filter in updatePitch
-var smoothing  = 20;       // or whatever is desired
-var lastUpdate = new Date;
+
 
 /********************* SCALE Globals ****************************/
 //scale playback parameters
@@ -105,51 +55,44 @@ const notes = {
 /***************** START **********************/
 // load the chart's Google code and then call drawChart function
 google.charts.load('current', {'packages':['corechart']});
-google.charts.setOnLoadCallback(drawChart);
+google.charts.setOnLoadCallback(UpdateLoop);
 
-// The overall timiong loop - runs every tTick ms
+// The overall timing loop - runs every tTick ms
 setInterval(UpdateLoop, tTick);
 
 function UpdateLoop() {
   if(isScale || isVoice){
     chartTime=performance.now();
     if(isScale) {
-      updatePitchScale();
+      analyserScale.getFloatTimeDomainData( bufScale );
+      var pitch = getPitch(bufScale,sampleRateScale);
+      if (pitch != null){
+        noteFloat = 12 * (Math.log( pitch / 440 )/Math.log(2) )+69;
+      }
+      else {
+        noteFloat = null;
+      }
+      console.log('Scale pitch', pitch, 'Scale note', noteFloat);
+
+      if(scaleArray.length < chart_table_length){
+        scaleArray.push(noteFloat); //note value
+      }
+      else {
+        lastValue = scaleArray[chart_table_length - 1]; //last note
+        scaleArray.shift();                                //shift down
+        var newValue = lastValue + (noteFloat-lastValue)/smoothing;
+        scaleArray.push(newValue);      //filtered value
+      }
+      
     }
     if(isVoice){
-      updatePitchVoice();
+      analyserVoice.getFloatTimeDomainData( bufVoice );
+      getPitch(bufVoice,sampleRateVoice);
     }
+    //disable for now
     drawChart();
   }
   
-}
-
-
-/************************************************ */
-/* functions for voice input */
-function error() {
-    const errorMessage = 'navigator.MediaDevices.getUserMedia error: ' + error.message + ' ' + error.name;
-  //console.log(errorMessage);
-}
-
-/*********Voice input setup********** */
-function gotStream(stream) {
-  //console.log('in gotStream');
-  const audioTracks = stream.getAudioTracks();
-
-  //console.log('Using audio device: ' + audioTracks[0].label);
-  stream.oninactive = function() {
-    //console.log('Stream ended');
-  };
-  window.stream = stream; // make variable available to browser console
-  //audio.srcObject = stream;
-  // Create an AudioNode from the stream.
-    mediaStreamSource = audioContext.createMediaStreamSource(stream);
-    // Connect it to the destination.
-    analyserVoice = audioContext.createAnalyser();
-    analyserVoice.fftSize = 2048;
-    mediaStreamSource.connect( analyserVoice );
-    updatePitchVoice();
 }
 
 
@@ -179,6 +122,7 @@ function startScale(){  // once the scale has started we let it complete (prefer
   else {
     isScale = true;
     audioContext = new AudioContext();
+    sampleRateScale = audioContext.sampleRate;
     analyserScale = audioContext.createAnalyser();
     analyserScale.fftSize = 2048;
     analyserScale.connect(audioContext.destination);
@@ -192,32 +136,26 @@ function startScale(){  // once the scale has started we let it complete (prefer
 	    //console.log('start to paly notes');
       playNote(audioContext,scaleNotes[i], now+i*tBeat, now + i*tBeat+tTone);
     }
-    updatePitchScale();
+    //getPitch(buf, analyser.sampleRate);
     return "stop";
     }
 }
 
-/************************************************ */
-/* TODO */
-/** TOGGLE does not work - should change to use MediaStreamTrack
-    which has a method to remove the track **/
 
 function toggleVoiceInput() {
   if (isVoice) {  //switch off
-        //stop playing and return
-        //sourceNode.stop( 0 );
-        //sourceNode = null;
-        //analyser = null;
-        if (!window.cancelAnimationFrame)
+    if (!window.cancelAnimationFrame){
 			window.cancelAnimationFrame = window.webkitCancelAnimationFrame;
-        window.cancelAnimationFrame( rafID );
-        isVoice = false;
+    }
+    window.cancelAnimationFrame( rafID );
+    isVoice = false;
     }
     else {
       isVoice = true;
       audioContext = new AudioContext();
-      //got and get the audio stream
-      navigator.mediaDevices.getUserMedia(constraints).then(gotStream).catch(error);
+      sampleRateVoice = audioContext.sampleRate;
+      //get the audio stream
+      //navigator.mediaDevices.getUserMedia(constraints).then(gotStream).catch(error);
     }
 }
 
@@ -226,149 +164,13 @@ function frequencyFromNoteNumber( note ) {
 }
 
 
-
-/************************************************ */
-function autoCorrelate( buf, sampleRate ) {
-  //NOTE: the sampleRate parameter passed here comes from the default for the analyser (using analyser.sampleRate)
-	var SIZE = buf.length;
-	var MAX_SAMPLES = Math.floor(SIZE/2);
-	var best_offset = -1;
-	var best_correlation = 0;
-	var rms = 0;
-	var foundGoodCorrelation = false;
-	var correlations = new Array(MAX_SAMPLES);
-
-	for (var i=0;i<SIZE;i++) {
-		var val = buf[i];
-		rms += val*val;
-	}
-	rms = Math.sqrt(rms/SIZE);
-	if (rms<MIN_AUDIO) // not enough signal
-		return -1;
-
-	var lastCorrelation=1;
-	for (var offset = MIN_SAMPLES; offset < MAX_SAMPLES; offset++) {
-		var correlation = 0;
-		for (var i=0; i<MAX_SAMPLES; i++) {
-			correlation += Math.abs((buf[i])-(buf[i+offset]));
-		}
-		correlation = 1 - (correlation/MAX_SAMPLES);
-		correlations[offset] = correlation; // store it, for the tweaking we need to do below.
-		if ((correlation>GOOD_ENOUGH_CORRELATION) && (correlation > lastCorrelation)) {
-			foundGoodCorrelation = true;
-			if (correlation > best_correlation) {
-				best_correlation = correlation;
-				best_offset = offset;
-			}
-		} else if (foundGoodCorrelation) {
-			
-			var shift = (correlations[best_offset+1] - correlations[best_offset-1])/correlations[best_offset];
-
-			return sampleRate/(best_offset+(8*shift));
-		}
-		lastCorrelation = correlation;
-	}
-	if (best_correlation > 0.01) {
-		return sampleRate/best_offset;
-	}
-	return -1;
-}
-
-
-
-/*********************** updatePitchVoice *********************/
-function updatePitchVoice( time ) {
-	var cycles = new Array;
-	analyserVoice.getFloatTimeDomainData( buf );
-	var ac = autoCorrelate( buf, audioContext.sampleRate );
- 	if (ac == -1) {
-		isSquelched = true;
-    voiceArray.push(null);
-		
- 	}
- 	else {
- 	  isSquelched = false;
-	 	pitch = ac;
-    var noteFloat = 12 * (Math.log( pitch / 440 )/Math.log(2) )+69;
-    var note = Math.round( noteFloat );
-    //send note to chart
-    // first, fill up the table
-    
-    if(voiceArray.length < chart_table_length){
-        voiceArray.push(noteFloat);
-    }
-    else { //TODO - add rate-independence by scaling smoothing variable
-      // now filter the new value, depending on past filtered value
-      // concept is from http://phrogz.net/js/framerate-independent-low-pass-filter.html
-      lastValue = voiceArray[chart_table_length - 1]; //last note
-      voiceArray.shift();                                //shift down
-      var newValue = lastValue + (noteFloat-lastValue)/smoothing;
-      voiceArray.push(newValue);      //filtered value
-      console.log(chartTime, newValue);
-    }
-      
-    
-	}
-	if (!window.requestAnimationFrame){
-		window.requestAnimationFrame = window.webkitRequestAnimationFrame;
-	}
-	/*if (isVoice) {
-	  rafID = window.requestAnimationFrame( updateLoop );
-  }*/
-}
-
-/*********************** updatePitchScale *********************/
-function updatePitchScale( time ) {
-	var cycles = new Array;
-	analyserScale.getFloatTimeDomainData( buf );
-	var ac = autoCorrelate( buf, audioContext.sampleRate );
- 	if (ac == -1) {
-		isSquelched = true;
- 	}
- 	else {
- 	  isSquelched = false;
-	 	pitch = ac;
-    var noteFloat = 12 * (Math.log( pitch / 440 )/Math.log(2) )+69;
-    var note = Math.round( noteFloat );
-    //send note to chart
-    // first, fill up the table - if not isSquelched
-    if(!isSquelched){
-      if(scaleArray.length < chart_table_length){
-        scaleArray.push(noteFloat);
-      }
-      else { //TODO - add rate-independence by scaling smoothing variable
-        // now filter the new value, depending on past filtered value
-        // concept is from http://phrogz.net/js/framerate-independent-low-pass-filter.html
-        lastValue = scaleArray[chart_table_length - 1]; //last note
-        scaleArray.shift();                                //shift down
-        var newValue = lastValue + (noteFloat-lastValue)/smoothing;
-        scaleArray.push(newValue);      //filtered value
-      }
-      
-      /*if(chartReady){
-        chartReady = false;
-        drawChart(chartTime);
-      }*/
-    }
-	}
-	if (!window.requestAnimationFrame){
-		window.requestAnimationFrame = window.webkitRequestAnimationFrame;
-	}
-	/*if (isScale) {
-	  rafID = window.requestAnimationFrame( updatePitchScale );
-  }*/
-}
-
-
-//drawChart();
-// CHART - the table needs to be updated with time
-
-/************************************************ */
+/*******************drawChart********************** */
 
 function drawChart() {
   //now assemble the scale and voice arrays
   var voiceNote = voiceArray[voiceArray.length - 1];
   var scaleNote = scaleArray[scaleArray.length - 1];
+  console.log(scaleNote);
   //console.log(Math.round(currentTime), scaleNote);
   timeAndNote.push([chartTime, voiceNote, scaleNote]) ;
   var data = google.visualization.arrayToDataTable(timeAndNote, true);
@@ -446,3 +248,136 @@ function readyHandler() {
           //drawChart();
         }
 
+/********************** TARTINI CODDE ***********************/
+onmessage = function(e) {
+  const startTime = performance.now();
+  const pitch = getPitch(new Float32Array(e.data.buffer), e.data.sampleRate);
+  const execTime = performance.now() - startTime;
+
+  postMessage({pitch, execTime});
+}
+
+const LOWER_PITCH_CUTOFF = 20.0;
+const SMALL_CUTOFF = 0.5;
+const CUTOFF = 0.93;
+
+function getPitch(buffer, sampleRate) {
+  const nsdf = normalizedSquareDifference(buffer);
+  const maxPositions = peakPicking(nsdf);
+  const estimates = [];
+
+  let highestAmplitude = Number.MIN_SAFE_INTEGER;
+
+  for(let i of maxPositions) {
+    highestAmplitude = Math.max(highestAmplitude, nsdf[i]);
+    if (nsdf[i] > SMALL_CUTOFF) {
+      let est = parabolicInterpolation(nsdf, i);
+      estimates.push(est);
+      highestAmplitude = Math.max(highestAmplitude, est[1]);
+    }
+  }
+
+  if(estimates.length === 0) {
+    return null;
+  }
+
+  const actualCutoff = CUTOFF * highestAmplitude;
+  let period = 0.0;
+
+  for(est of estimates) {
+    if(est[1] >= actualCutoff) {
+      period = est[0];
+      break;
+    }
+  }
+
+  const pitchEst = sampleRate / period;
+
+  return pitchEst > LOWER_PITCH_CUTOFF ? pitchEst : -1;
+}
+
+function peakPicking(nsdf) {
+  const maxPositions = [];
+  let pos = 0;
+  let curMaxPos = 0;
+  const len = nsdf.length;
+
+  while(pos < (len - 1) / 3 && nsdf[pos] > 0.0) {
+    pos++;
+  }
+  while(pos < len - 1 && nsdf <= 0.0) {
+    pos++;
+  }
+
+  if(pos === 0) {
+    pos = 1;
+  }
+
+  while(pos < len -1) {
+    if(nsdf[pos] < nsdf[pos - 1] && nsdf[pos] >= nsdf[pos + 1]) {
+      if(curMaxPos === 0) {
+        curMaxPos = pos;
+      } else if(nsdf[pos] > nsdf[curMaxPos]) {
+        curMaxPos = pos;
+      }
+    }
+
+    pos++;
+
+    if(pos < len - 1 && nsdf[pos] <= 0.0) {
+      if(curMaxPos > 0) {
+        maxPositions.push(curMaxPos);
+        curMaxPos = 0;
+      }
+      while(pos < len - 1 && nsdf <= 0.0) {
+        pos++;
+      }
+    }
+  }
+
+  if(curMaxPos > 0) {
+    maxPositions.push(curMaxPos);
+  }
+
+  return maxPositions;
+}
+
+function normalizedSquareDifference(buffer) {
+  const len = buffer.length;
+  const nsdf = new Array(len).fill(0.0);
+
+  for(let tau = 0; tau < len; tau++) {
+    let acf = 0.0;
+    let divisorM = 0.0;
+
+    for(let i = 0; i < len - tau; i++) {
+      acf += buffer[i] * buffer[i + tau];
+      let el1 = buffer[i];
+      let p1 = Math.pow(el1, 2);
+      let el2 = buffer[i + tau];
+      let p2 = Math.pow(el2, 2);
+      divisorM += p1 + p2;
+    }
+
+    nsdf[tau] = 2.0 * acf / divisorM;
+  }
+
+  return nsdf;
+}
+
+function parabolicInterpolation(nsdf, tau) {
+  const nsdfa = nsdf[tau - 1];
+  const nsdfb = nsdf[tau];
+  const nsdfc = nsdf[tau + 1];
+  const bottom = nsdfc + nsdfa - 2.0 * nsdfb;
+
+  if(bottom === 0.0) {
+    return [tau, nsdfb]
+  } else {
+    let delta = nsdfa - nsdfc;
+    return [
+      tau + delta / (2.0 * bottom),
+      nsdfb - delta * delta / (8.0 * bottom)
+    ]
+  }
+}
