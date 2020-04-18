@@ -2,13 +2,13 @@
 
 /************************ INITIALISATION ****************************/
 //parameters for the chart table
-const tTick = 300; //update rate of chart in ms
+const tTick = 200; //update rate of chart in ms
 const chart_table_length=64;
 var chartTime;
 var chartReady = true;
-var voiceArray = [60,64]; //initial chart tables
-var scaleArray = [60,65];
-var timeAndNote = [[performance.now(),60,60],[performance.now()+tTick,61,62]];
+var voiceArray = [60]; //initial chart tables
+var scaleArray = [60];
+var timeAndNote = [[performance.now(),60, 60],[performance.now()+tTick,60, 60]];
 
 /****************** Audio ********************/
 var buflen = 1024;
@@ -19,6 +19,7 @@ var isScale = false;
 var analyserVoice = null;
 var analyserScale = null;
 var noteFloat = null;
+var smoothing = 10; //the 1 value doesn't smooth at all
 
 const constraints = window.constraints = {
   audio: true,
@@ -61,6 +62,7 @@ google.charts.setOnLoadCallback(UpdateLoop);
 setInterval(UpdateLoop, tTick);
 
 function UpdateLoop() {
+  //console.log('isScale', isScale);
   if(isScale || isVoice){
     chartTime=performance.now();
     if(isScale) {
@@ -72,7 +74,7 @@ function UpdateLoop() {
       else {
         noteFloat = null;
       }
-      console.log('Scale pitch', pitch, 'Scale note', noteFloat);
+      //console.log('Scale pitch', pitch, 'Scale note', noteFloat);
 
       if(scaleArray.length < chart_table_length){
         scaleArray.push(noteFloat); //note value
@@ -85,10 +87,29 @@ function UpdateLoop() {
       }
       
     }
-    if(isVoice){
+    if(isVoice) {
       analyserVoice.getFloatTimeDomainData( bufVoice );
-      getPitch(bufVoice,sampleRateVoice);
+      var pitch = getPitch(bufVoice,sampleRateVoice);
+      if (pitch != null){
+        noteFloat = 12 * (Math.log( pitch / 440 )/Math.log(2) )+69;
+      }
+      else {
+        noteFloat = null;
+      }
+      //console.log('Voice pitch', pitch, 'Voice note', noteFloat);
+
+      if(voiceArray.length < chart_table_length){
+        voiceArray.push(noteFloat); //note value
+      }
+      else {
+        lastValue = voiceArray[chart_table_length - 1]; //last note
+        voiceArray.shift();                                //shift down
+        var newValue = lastValue + (noteFloat-lastValue)/smoothing;
+        voiceArray.push(newValue);      //filtered value
+      }
+      
     }
+    
     //disable for now
     drawChart();
   }
@@ -111,15 +132,12 @@ function playNote(audioContext,frequency, startTime, endTime) {
     
 function startScale(){  // once the scale has started we let it complete (prefer to stop though)
   if (isScale) {
+    //console.log('Scale stop'); //BUT the scale won't restart until it's fnished
     isScale = false;
-    if (!window.cancelAnimationFrame){
-      window.cancelAnimationFrame = window.webkitCancelAnimationFrame;
-    }
-    window.cancelAnimationFrame( rafID );
     return "play scale";
   }
-  
   else {
+    //console.log('Scale start');
     isScale = true;
     audioContext = new AudioContext();
     sampleRateScale = audioContext.sampleRate;
@@ -133,30 +151,52 @@ function startScale(){  // once the scale has started we let it complete (prefer
     var  now = audioContext.currentTime;
     //play the scale (8 notes)
     for(var i=0; i<8; i++){
-	    //console.log('start to paly notes');
+	    //console.log('start to play notes');
       playNote(audioContext,scaleNotes[i], now+i*tBeat, now + i*tBeat+tTone);
     }
-    //getPitch(buf, analyser.sampleRate);
     return "stop";
-    }
+  }
 }
 
 
 function toggleVoiceInput() {
   if (isVoice) {  //switch off
-    if (!window.cancelAnimationFrame){
-			window.cancelAnimationFrame = window.webkitCancelAnimationFrame;
-    }
-    window.cancelAnimationFrame( rafID );
+  console.log('Voice stop');
     isVoice = false;
-    }
-    else {
-      isVoice = true;
-      audioContext = new AudioContext();
-      sampleRateVoice = audioContext.sampleRate;
-      //get the audio stream
-      //navigator.mediaDevices.getUserMedia(constraints).then(gotStream).catch(error);
-    }
+  }
+  else {
+    console.log('Voice start');
+    isVoice = true;
+    audioContext = new AudioContext();
+    sampleRateVoice = audioContext.sampleRate;
+    //get the audio stream
+    navigator.mediaDevices.getUserMedia(constraints).then(gotStream).catch(error);
+  }
+}
+
+/* functions for voice input */
+function error() {
+    const errorMessage = 'navigator.MediaDevices.getUserMedia error: ' + error.message + ' ' + error.name;
+  //console.log(errorMessage);
+}
+
+/*********Voice input setup********** */
+function gotStream(stream) {
+  //console.log('in gotStream');
+  const audioTracks = stream.getAudioTracks();
+
+  //console.log('Using audio device: ' + audioTracks[0].label);
+  stream.oninactive = function() {
+    //console.log('Stream ended');
+  };
+  window.stream = stream; // make variable available to browser console
+  // Create an AudioNode from the stream.
+    mediaStreamSource = audioContext.createMediaStreamSource(stream);
+    // Connect it to the destination.
+    analyserVoice = audioContext.createAnalyser();
+    console.log('analyserVoice created');
+    analyserVoice.fftSize = 2048;
+    mediaStreamSource.connect( analyserVoice );
 }
 
 function frequencyFromNoteNumber( note ) {
@@ -170,7 +210,7 @@ function drawChart() {
   //now assemble the scale and voice arrays
   var voiceNote = voiceArray[voiceArray.length - 1];
   var scaleNote = scaleArray[scaleArray.length - 1];
-  console.log(scaleNote);
+  //console.log(scaleNote);
   //console.log(Math.round(currentTime), scaleNote);
   timeAndNote.push([chartTime, voiceNote, scaleNote]) ;
   var data = google.visualization.arrayToDataTable(timeAndNote, true);
@@ -182,7 +222,7 @@ function drawChart() {
     hAxis: { //remove x axis clutter so it looks like a moving display
       ticks: [],
       gridlines: {color:'transparent'},
-      viewWindow: { //thsi gives a "moving" chart
+      viewWindow: { //this gives a "moving" chart
         min: chartTime-64*tTick,
         max: chartTime
       },
