@@ -1,8 +1,15 @@
-/* This branch uases the Tartini pitch detector   */
+/* This branch uses the Tartini pitch detector   */
+/* TODOs */
+/*
+  Get restart for voice
+  Button text index.html
+  config for scales etc
+*/
+
 
 /************************ INITIALISATION ****************************/
 //parameters for the chart table
-const tTick = 200; //update rate of chart in ms
+const tTick = 300; //update rate of chart in ms
 const chart_table_length=64;
 var chartTime;
 var chartReady = true;
@@ -14,12 +21,13 @@ var timeAndNote = [[performance.now(),60, 60],[performance.now()+tTick,60, 60]];
 var buflen = 1024;
 var bufScale = new Float32Array( buflen );
 var bufVoice = new Float32Array( buflen );
+bufVoice.fill(0.0);
 var isVoice = false;
 var isScale = false;
 var analyserVoice = null;
 var analyserScale = null;
 var noteFloat = null;
-var smoothing = 10; //the 1 value doesn't smooth at all
+var smoothing = 20; //the 1 value doesn't smooth at all
 
 const constraints = window.constraints = {
   audio: true,
@@ -27,8 +35,6 @@ const constraints = window.constraints = {
 };
 
 /*** MISC ****/
-var rafID = null;
-
 
 /********************* SCALE Globals ****************************/
 //scale playback parameters
@@ -62,7 +68,7 @@ google.charts.setOnLoadCallback(UpdateLoop);
 setInterval(UpdateLoop, tTick);
 
 function UpdateLoop() {
-  //console.log('isScale', isScale);
+
   if(isScale || isVoice){
     chartTime=performance.now();
     if(isScale) {
@@ -74,7 +80,6 @@ function UpdateLoop() {
       else {
         noteFloat = null;
       }
-      //console.log('Scale pitch', pitch, 'Scale note', noteFloat);
 
       if(scaleArray.length < chart_table_length){
         scaleArray.push(noteFloat); //note value
@@ -88,29 +93,36 @@ function UpdateLoop() {
       
     }
     if(isVoice) {
+      
       analyserVoice.getFloatTimeDomainData( bufVoice );
       var pitch = getPitch(bufVoice,sampleRateVoice);
-      if (pitch != null){
-        noteFloat = 12 * (Math.log( pitch / 440 )/Math.log(2) )+69;
+      if (pitch === null){
+        noteFloat = null ;
       }
       else {
-        noteFloat = null;
+        noteFloat = 12 * (Math.log( pitch / 440 )/Math.log(2) )+69;
       }
-      //console.log('Voice pitch', pitch, 'Voice note', noteFloat);
 
       if(voiceArray.length < chart_table_length){
         voiceArray.push(noteFloat); //note value
       }
-      else {
+      /*else {  //apply filter, but don't filter if null is there
         lastValue = voiceArray[chart_table_length - 1]; //last note
-        voiceArray.shift();                                //shift down
-        var newValue = lastValue + (noteFloat-lastValue)/smoothing;
-        voiceArray.push(newValue);      //filtered value
+        if(lastValue !== null && noteFloat !== null) {
+          console.log('time', Math.round(chartTime), 'Voice note', noteFloat, lastValue);
+          voiceArray.shift();   //shift down
+          var newValue = lastValue + (noteFloat-lastValue)/smoothing;
+          voiceArray.push(newValue);      //filtered value
+        }
+                         
+      }*/
+      else {  //no filtering for now - it's buggy (null etc)
+        voiceArray.shift();   //shift down
+        voiceArray.push(noteFloat);
+        console.log('time', Math.round(chartTime), 'Voice note', noteFloat);
       }
       
     }
-    
-    //disable for now
     drawChart();
   }
   
@@ -194,7 +206,7 @@ function gotStream(stream) {
     mediaStreamSource = audioContext.createMediaStreamSource(stream);
     // Connect it to the destination.
     analyserVoice = audioContext.createAnalyser();
-    console.log('analyserVoice created');
+    //console.log('analyserVoice created');
     analyserVoice.fftSize = 2048;
     mediaStreamSource.connect( analyserVoice );
 }
