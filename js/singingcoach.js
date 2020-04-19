@@ -1,6 +1,7 @@
 /* This branch uses the Tartini pitch detector   */
 /* TODOs */
 /*
+  Add time now on canvas
   Get restart for voice
   Button text index.html
   config for scales etc
@@ -21,13 +22,13 @@ var timeAndNote = [[performance.now(),60, 60],[performance.now()+tTick,60, 60]];
 var buflen = 1024;
 var bufScale = new Float32Array( buflen );
 var bufVoice = new Float32Array( buflen );
-bufVoice.fill(0.0);
+bufVoice.fill(1.0);
 var isVoice = false;
 var isScale = false;
 var analyserVoice = null;
 var analyserScale = null;
 var noteFloat = null;
-var smoothing = 20; //the 1 value doesn't smooth at all
+var smoothing = 5; //the 1 value doesn't smooth at all
 
 const constraints = window.constraints = {
   audio: true,
@@ -95,31 +96,26 @@ function UpdateLoop() {
     if(isVoice) {
       
       analyserVoice.getFloatTimeDomainData( bufVoice );
-      var pitch = getPitch(bufVoice,sampleRateVoice);
-      if (pitch === null){
+      pitch = getPitch(bufVoice,sampleRateVoice);
+      if (pitch === 0.0 || pitch == -1 || !isFinite(pitch)) {  //catch bad pitch values
         noteFloat = null ;
       }
       else {
         noteFloat = 12 * (Math.log( pitch / 440 )/Math.log(2) )+69;
       }
-
+        
       if(voiceArray.length < chart_table_length){
         voiceArray.push(noteFloat); //note value
       }
-      /*else {  //apply filter, but don't filter if null is there
+      else {  //apply filter, but don't filter if null is there
         lastValue = voiceArray[chart_table_length - 1]; //last note
         if(lastValue !== null && noteFloat !== null) {
-          console.log('time', Math.round(chartTime), 'Voice note', noteFloat, lastValue);
+          //console.log('time', Math.round(chartTime), 'Voice note', noteFloat, lastValue);
           voiceArray.shift();   //shift down
-          var newValue = lastValue + (noteFloat-lastValue)/smoothing;
+          newValue = lastValue + (noteFloat-lastValue)/smoothing;
           voiceArray.push(newValue);      //filtered value
         }
                          
-      }*/
-      else {  //no filtering for now - it's buggy (null etc)
-        voiceArray.shift();   //shift down
-        voiceArray.push(noteFloat);
-        console.log('time', Math.round(chartTime), 'Voice note', noteFloat);
       }
       
     }
@@ -301,6 +297,7 @@ function readyHandler() {
         }
 
 /********************** TARTINI CODDE ***********************/
+/**** chnaged to return 0 instead of null for bad case ****/
 onmessage = function(e) {
   const startTime = performance.now();
   const pitch = getPitch(new Float32Array(e.data.buffer), e.data.sampleRate);
@@ -330,7 +327,7 @@ function getPitch(buffer, sampleRate) {
   }
 
   if(estimates.length === 0) {
-    return null;
+    return 0.0; //was null
   }
 
   const actualCutoff = CUTOFF * highestAmplitude;
