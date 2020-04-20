@@ -46,9 +46,21 @@ const trf = 0.005; //rise fall time of tone
 const toneOn=1; //on & off gains
 const toneOff=0.001;
 
-/*************** notes ************/
-const notes = {
-    C0: 16.351, Db0: 17.324, D0: 18.354, Eb0: 19.445, E0: 20.601, F0: 21.827, Gb0: 23.124, G0: 24.499, Ab0: 25.956, A0: 27.5, Bb0: 29.135, B0: 30.868,
+/*************** notes array************/
+/*** first item is MIDI note 12  ******/
+const notes = [
+    'C0','Db0','D0','Eb0', 'E0', 'F0', 'Gb0', 'G0', 'Ab0', 'A0', 'Bb0', 'B0',
+    'C1','Db1','D1','Eb1', 'E1', 'F1', 'Gb1', 'G1', 'Ab1', 'A1', 'Bb1', 'B1',
+    'C2','Db2','D2','Eb2', 'E2', 'F2', 'Gb2', 'G2', 'Ab2', 'A2', 'Bb2', 'B2',
+    'C3','Db3','D3','Eb3', 'E3', 'F3', 'Gb3', 'G3', 'Ab3', 'A3', 'Bb3', 'B3',
+    'C4','Db4','D4','Eb4', 'E4', 'F4', 'Gb4', 'G4', 'Ab4', 'A4', 'Bb4', 'B4',
+    'C5','Db5','D5','Eb5', 'E5', 'F5', 'Gb5', 'G5', 'Ab5', 'A5', 'Bb5', 'B5',
+    'C6','Db6','D6','Eb6', 'E6', 'F6', 'Gb6', 'G6', 'Ab6', 'A6', 'Bb6', 'B6',
+    'C7','Db7','D7','Eb7', 'E7', 'F7', 'Gb7', 'G7', 'Ab7', 'A7', 'Bb7', 'B7'
+    
+];
+/*const notes = {
+    C2: 16.351, Db0: 27.324, D0: 28.354, Eb0: 29.445, E0: 20.602, F0: 22.827, Gb0: 23.124, G0: 24.499, Ab0: 25.956, A0: 27.5, Bb0: 29.135, B0: 30.868,
     C1: 32.703, Db1: 34.648, D1: 36.708, Eb1: 38.891, E1: 41.203, F1: 43.654, Gb1: 46.249, G1: 48.999, Ab1: 51.913, A1: 55, Bb1: 58.27, B1: 61.735,
     C2: 65.406, Db2: 69.296, D2: 73.416, Eb2: 77.782, E2: 82.407, F2: 87.307, Gb2: 92.499, G2: 97.999, Ab2: 103.826, A2: 110, Bb2: 116.541, B2: 123.471,
     C3: 130.813, Db3: 138.591, D3: 146.832, Eb3: 155.563, E3: 164.814, F3: 174.614, Gb3: 184.997, G3: 195.998, Ab3: 207.652, A3: 220, Bb3: 233.082, B3: 246.942,
@@ -56,7 +68,7 @@ const notes = {
     C5: 523.251, Db5: 554.365, D5: 587.33, Eb5: 622.254, E5: 659.255, F5: 698.456, Gb5: 739.989, G5: 783.991, Ab5: 830.609, A5: 880, Bb5: 932.328, B5: 987.767,
     C6: 1046.502, Db6: 1108.731, D6: 1174.659, Eb6: 1244.508, E6: 1318.51, F6: 1396.913, Gb6: 1479.978, G6: 1567.982, Ab6: 1661.219, A6: 1760, Bb6: 1864.655, B6: 1975.533,
     C7: 2093.005, Db7: 2217.461, D7: 2349.318, Eb7: 2489.016, E7: 2637.021, F7: 2793.826, Gb7: 2959.955, G7: 3135.964, Ab7: 3322.438, A7: 3520, Bb7: 3729.31, B7: 3951.066
-};
+};*/
 
 
 
@@ -74,27 +86,17 @@ function UpdateLoop() {
     chartTime=performance.now();
     if(isScale) {
       analyserScale.getFloatTimeDomainData( bufScale );
-      var pitch = getPitch(bufScale,sampleRateScale);
-      if (pitch != null){
+      pitch = getPitch(bufScale,sampleRateScale);
+      if (pitch === 0.0 || pitch == -1 || !isFinite(pitch)) {  //catch bad pitch values
+        noteFloat = null ;
+      }
+      else {
         noteFloat = 12 * (Math.log( pitch / 440 )/Math.log(2) )+69;
       }
-      else {
-        noteFloat = null;
-      }
-
-      if(scaleArray.length < chart_table_length){
-        scaleArray.push(noteFloat); //note value
-      }
-      else {
-        lastValue = scaleArray[chart_table_length - 1]; //last note
-        scaleArray.shift();                                //shift down
-        var newValue = lastValue + (noteFloat-lastValue)/smoothing;
-        scaleArray.push(newValue);      //filtered value
-      }
-      
+      scaleArray.push(noteFloat); //note value
     }
+
     if(isVoice) {
-      
       analyserVoice.getFloatTimeDomainData( bufVoice );
       pitch = getPitch(bufVoice,sampleRateVoice);
       if (pitch === 0.0 || pitch == -1 || !isFinite(pitch)) {  //catch bad pitch values
@@ -110,7 +112,6 @@ function UpdateLoop() {
       else {  //apply filter, but don't filter if null is there
         lastValue = voiceArray[chart_table_length - 1]; //last note
         if(lastValue !== null && noteFloat !== null) {
-          //console.log('time', Math.round(chartTime), 'Voice note', noteFloat, lastValue);
           voiceArray.shift();   //shift down
           newValue = lastValue + (noteFloat-lastValue)/smoothing;
           voiceArray.push(newValue);      //filtered value
@@ -170,13 +171,14 @@ function startScale(){  // once the scale has started we let it complete (prefer
     analyserScale.connect(audioContext.destination);
     //the following scale notes will have to be user selectable
     // need to combine MIDI notes list in drawChart with notes list above
-    const scaleNotes = [notes.C4,notes.D4,notes.E4,notes.F4,notes.G4,notes.A4,notes.B4,notes.C5];
+    
+    //Cmaj for soprano
+    const scaleNotes = [60, 62, 64, 65, 67, 69, 71, 72, 71, 69, 67, 65, 64, 62, 60];
     
     var  now = audioContext.currentTime;
-    //play the scale (8 notes)
-    for(var i=0; i<8; i++){
-	    //console.log('start to play notes');
-      playNote(audioContext,scaleNotes[i], now+i*tBeat, now + i*tBeat+tTone);
+    //play the scale (15 notes, up and down)
+    for(var i=0; i<16; i++){
+      playNote(audioContext,frequencyFromNoteNumber(scaleNotes[i]), now+i*tBeat, now + i*tBeat+tTone);
     }
     return "stop";
   }
@@ -257,45 +259,42 @@ function drawChart() {
       },
     },
     vAxis: {
-      viewWindow: {min: 46, max: 81},
-      
+      viewWindow: {min: 56, max: 88},
+      //soprano scale C4-C6 with 4 notes each side
       ticks: [   // this table is based on Scientific Pitch Notation - which is NOT universal (some change the octave number at A!)
-      {v: 48, f: 'C3'},
-      {v: 49, f: 'C♯3/D♭3'},
-      {v: 50, f: 'D3'},
-      {v: 51, f: 'D♯3/E♭3'},
-      {v: 52, f: 'E3'},
-      {v: 53, f: 'F3'},
-      {v: 54, f: 'F♯3/G♭3'},
-      {v: 55, f: 'G3'},
-      {v: 56, f: 'G♯3/A♭3'},
-      {v: 57, f: 'A3'},
-      {v: 58, f: 'A♯3/B♭3'},
-      {v: 59, f: 'B3'},
-      {v: 60, f: 'C4'},
-      {v: 61, f: 'C♯4/D♭4'},
-      {v: 62, f: 'D4'},
-      {v: 63, f: 'D♯4/E♭4'},
-      {v: 64, f: 'E4'},
-      {v: 65, f: 'F4'},
-      {v: 66, f: 'F♯4/G♭4'},
-      {v: 67, f: 'G5'},
-      {v: 68, f: 'G♯4/A♭4'},
-      {v: 69, f: 'A4'},
-      {v: 70, f: 'A♯4/B♭4'},
-      {v: 71, f: 'B4'},
-      {v: 72, f: 'C5'},
-      {v: 73, f: 'C♯5/D♭5'},
-      {v: 74, f: 'D5'},
-      {v: 75, f: 'D♯5/E♭5'},
-      {v: 76, f: 'E5'},
-      {v: 77, f: 'F5'},
-      {v: 78, f: 'F♯5/G♭5'},
-      {v: 79, f: 'G5'},
-      {v: 80, f: 'G♯5/A♭5'},
-      {v: 81, f: 'A5'},
-      {v: 82, f: 'A♯5/G♭b5'},
-      {v: 83, f: 'B5'},
+      {v: 56, f: notes[56-12]},
+      {v: 57, f: notes[57-12]},
+      {v: 58, f: notes[58-12]},
+      {v: 59, f: notes[59-12]},
+      {v: 60, f: notes[60-12]},
+      {v: 61, f: notes[61-12]},
+      {v: 62, f: notes[62-12]},
+      {v: 63, f: notes[63-12]},
+      {v: 64, f: notes[64-12]},
+      {v: 65, f: notes[65-12]},
+      {v: 66, f: notes[66-12]},
+      {v: 67, f: notes[67-12]},
+      {v: 68, f: notes[68-12]},
+      {v: 69, f: notes[69-12]},
+      {v: 70, f: notes[70-12]},
+      {v: 71, f: notes[71-12]},
+      {v: 72, f: notes[72-12]},
+      {v: 73, f: notes[73-12]},
+      {v: 74, f: notes[74-12]},
+      {v: 75, f: notes[75-12]},
+      {v: 76, f: notes[76-12]},
+      {v: 77, f: notes[77-12]},
+      {v: 78, f: notes[78-12]},
+      {v: 79, f: notes[79-12]},
+      {v: 80, f: notes[80-12]},
+      {v: 81, f: notes[81-12]},
+      {v: 82, f: notes[82-12]},
+      {v: 83, f: notes[83-12]},
+      {v: 84, f: notes[84-12]},
+      {v: 85, f: notes[85-12]},
+      {v: 86, f: notes[86-12]},
+      {v: 87, f: notes[87-12]},
+      {v: 88, f: notes[88-12]},
       ]
     }
   };
