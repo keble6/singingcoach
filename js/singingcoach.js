@@ -1,9 +1,9 @@
 /* This branch uses the Tartini pitch detector   */
 /* TODOs */
 /*
-  Add time now on canvas
-  Get restart for voice
-  Button text index.html
+  Add time now on canvas DONE
+  Get restart for voice DONE
+  Button text index.html DONE
   config for scales etc
 */
 
@@ -39,7 +39,7 @@ const constraints = window.constraints = {
 
 /********************* SCALE Globals ****************************/
 //scale playback parameters
-const tempo = 40; //beats per minute
+const tempo = 20; //beats per minute
 const tBeat = 60 / tempo; //seconds per beat
 const tTone = tBeat/2;  //tone sounds for a quarter of the scale note
 const trf = 0.005; //rise fall time of tone
@@ -140,12 +140,14 @@ function playNote(audioContext,frequency, startTime, endTime) {
     
 function startScale(){  // once the scale has started we let it complete (prefer to stop though)
   if (isScale) {
-    //console.log('Scale stop'); //BUT the scale won't restart until it's fnished
+    document.querySelector('#scale').textContent=
+   'start scale';
     isScale = false;
-    return "play scale";
+    return;
   }
   else {
-    //console.log('Scale start');
+    document.querySelector('#scale').textContent=
+   'stop scale';
     isScale = true;
     audioContext = new AudioContext();
     sampleRateScale = audioContext.sampleRate;
@@ -169,10 +171,14 @@ function startScale(){  // once the scale has started we let it complete (prefer
 
 function toggleVoiceInput() {
   if (isVoice) {  //switch off
+  document.querySelector('#voice').textContent=
+   'start voice input';
   console.log('Voice stop');
     isVoice = false;
   }
   else {
+    document.querySelector('#voice').textContent=
+   'stop voice input';
     console.log('Voice start');
     isVoice = true;
     audioContext = new AudioContext();
@@ -215,6 +221,7 @@ function frequencyFromNoteNumber( note ) {
 /*******************drawChart********************** */
 
 function drawChart() {
+  document.getElementById("time").innerHTML = Math.round(chartTime/1000.0) ;
   //now assemble the scale and voice arrays
   var voiceNote = voiceArray[voiceArray.length - 1];
   var scaleNote = scaleArray[scaleArray.length - 1];
