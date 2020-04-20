@@ -10,9 +10,10 @@
     <script src="js/singingcoach.js"></script>
 
 		<p>
-			<button onclick="toggleVoiceInput()">voice input</button>
-			<button onclick="startScale()">play scale</button>
+			<button type="button" onclick="toggleVoiceInput()" id="voice">start voice input</button>
+			<button type="button" onclick="startScale()" id="scale">start scale</button>
 		</p>
+		<p id="time"></p>
 
 
     <div id="curve_chart" style="width: 700px; height: 700px"></div>
