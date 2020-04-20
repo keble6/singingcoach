@@ -124,7 +124,21 @@ function UpdateLoop() {
   
 }
 
+/************* GetRange() **********/
+// get selected vocal range in HTML page
 
+function getRange(){
+  var ele = document.getElementsByName('range');
+              
+  for(i = 0; i < ele.length; i++) {
+    if(ele[i].checked){
+      var range = ele[i].value;
+      console.log('range = ',range);
+    }
+  }
+}
+
+/************ playNote (for scale mode) ***********/
 function playNote(audioContext,frequency, startTime, endTime) {
 	  	gainNode = audioContext.createGain(); //to get smooth rise/fall
       oscillator = audioContext.createOscillator();
@@ -231,7 +245,7 @@ function drawChart() {
   var data = google.visualization.arrayToDataTable(timeAndNote, true);
 
   var options = {
-    title: 'note vs time',
+    //title: 'note vs time',
     curveType: 'none',
     legend: { position: 'bottom' },
     hAxis: { //remove x axis clutter so it looks like a moving display
@@ -288,9 +302,6 @@ function drawChart() {
 
   var chart = new google.visualization.LineChart(document.getElementById('curve_chart'));
 
-    
-
-        // Listen for the 'ready' event, and call my function readyHandler() when it's been drawn.
   google.visualization.events.addListener(chart, 'ready', readyHandler);
 
   chart.draw(data, options);
