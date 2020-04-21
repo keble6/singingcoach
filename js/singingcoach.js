@@ -229,34 +229,23 @@ function frequencyFromNoteNumber( note ) {
 	return 440 * Math.pow(2,(note-69)/12);
 }
 
-// experiment with vAxis ticks ARRAY
-/*vAxisTicks= [
-      {v: 56, f: notes[56-12]}, {v: 57, f: notes[57-12]}, {v: 58, f: notes[58-12]}, {v: 59, f: notes[59-12]},
-      {v: 60, f: notes[60-12]}, {v: 61, f: notes[61-12]}, {v: 62, f: notes[62-12]}, {v: 63, f: notes[63-12]},
-      {v: 64, f: notes[64-12]}, {v: 65, f: notes[65-12]}, {v: 66, f: notes[66-12]}, {v: 67, f: notes[67-12]},
-      {v: 68, f: notes[68-12]}, {v: 69, f: notes[69-12]}, {v: 70, f: notes[70-12]}, {v: 71, f: notes[71-12]},
-      {v: 72, f: notes[72-12]}, {v: 73, f: notes[73-12]}, {v: 74, f: notes[74-12]}, {v: 75, f: notes[75-12]},
-      {v: 76, f: notes[76-12]}, {v: 77, f: notes[77-12]}, {v: 78, f: notes[78-12]}, {v: 79, f: notes[79-12]},
-      {v: 80, f: notes[80-12]}, {v: 81, f: notes[81-12]}, {v: 82, f: notes[82-12]}, {v: 83, f: notes[83-12]},
-      {v: 84, f: notes[84-12]}, {v: 85, f: notes[85-12]}, {v: 86, f: notes[86-12]}, {v: 87, f: notes[87-12]},
+// experiment with vAxis ticks ARRAY - show gridlien for each note but vaxis tick every 2
+// this is the soprano array - need others too - use constructor?
+vAxisTicks= [
+      {v: 56, f: notes[56-12]}, {v: 57}, {v: 58, f: notes[58-12]}, {v: 59},
+      {v: 60, f: notes[60-12]}, {v: 61}, {v: 62, f: notes[62-12]}, {v: 63},
+      {v: 64, f: notes[64-12]}, {v: 65}, {v: 66, f: notes[66-12]}, {v: 67},
+      {v: 68, f: notes[68-12]}, {v: 69}, {v: 70, f: notes[70-12]}, {v: 71},
+      {v: 72, f: notes[72-12]}, {v: 73}, {v: 74, f: notes[74-12]}, {v: 75},
+      {v: 76, f: notes[76-12]}, {v: 77}, {v: 78, f: notes[78-12]}, {v: 79},
+      {v: 80, f: notes[80-12]}, {v: 81}, {v: 82, f: notes[82-12]}, {v: 83},
+      {v: 84, f: notes[84-12]}, {v: 85}, {v: 86, f: notes[86-12]}, {v: 87},
       {v: 88, f: notes[88-12]},
-      ];*/
+      ];
       
 /*******************drawChart********************** */
 
 function drawChart() {
-  vAxisTicks= [
-      {v: 56, f: notes[56-12]}, {v: 57, f: notes[57-12]}, {v: 58, f: notes[58-12]}, {v: 59, f: notes[59-12]},
-      {v: 60, f: notes[60-12]}, {v: 61, f: notes[61-12]}, {v: 62, f: notes[62-12]}, {v: 63, f: notes[63-12]},
-      {v: 64, f: notes[64-12]}, {v: 65, f: notes[65-12]}, {v: 66, f: notes[66-12]}, {v: 67, f: notes[67-12]},
-      {v: 68, f: notes[68-12]}, {v: 69, f: notes[69-12]}, {v: 70, f: notes[70-12]}, {v: 71, f: notes[71-12]},
-      {v: 72, f: notes[72-12]}, {v: 73, f: notes[73-12]}, {v: 74, f: notes[74-12]}, {v: 75, f: notes[75-12]},
-      {v: 76, f: notes[76-12]}, {v: 77, f: notes[77-12]}, {v: 78, f: notes[78-12]}, {v: 79, f: notes[79-12]},
-      {v: 80, f: notes[80-12]}, {v: 81, f: notes[81-12]}, {v: 82, f: notes[82-12]}, {v: 83, f: notes[83-12]},
-      {v: 84, f: notes[84-12]}, {v: 85, f: notes[85-12]}, {v: 86, f: notes[86-12]}, {v: 87, f: notes[87-12]},
-      {v: 88, f: notes[88-12]},
-      ];
-  
   document.getElementById("time").innerHTML = Math.round(chartTime/1000.0) ;
   //now assemble the scale and voice arrays
   var voiceNote = voiceArray[voiceArray.length - 1];
@@ -279,44 +268,9 @@ function drawChart() {
       },
     },
     vAxis: {
-      viewWindow: {min: 56, max: 88},
-      vAxisTicks,
-      //soprano scale C4-C6 with 4 notes each side
-      /*ticks: [   // this table is based on Scientific Pitch Notation - which is NOT universal (some change the octave number at A!)
-      {v: 56, f: notes[56-12]},
-      {v: 57, f: notes[57-12]},
-      {v: 58, f: notes[58-12]},
-      {v: 59, f: notes[59-12]},
-      {v: 60, f: notes[60-12]},
-      {v: 61, f: notes[61-12]},
-      {v: 62, f: notes[62-12]},
-      {v: 63, f: notes[63-12]},
-      {v: 64, f: notes[64-12]},
-      {v: 65, f: notes[65-12]},
-      {v: 66, f: notes[66-12]},
-      {v: 67, f: notes[67-12]},
-      {v: 68, f: notes[68-12]},
-      {v: 69, f: notes[69-12]},
-      {v: 70, f: notes[70-12]},
-      {v: 71, f: notes[71-12]},
-      {v: 72, f: notes[72-12]},
-      {v: 73, f: notes[73-12]},
-      {v: 74, f: notes[74-12]},
-      {v: 75, f: notes[75-12]},
-      {v: 76, f: notes[76-12]},
-      {v: 77, f: notes[77-12]},
-      {v: 78, f: notes[78-12]},
-      {v: 79, f: notes[79-12]},
-      {v: 80, f: notes[80-12]},
-      {v: 81, f: notes[81-12]},
-      {v: 82, f: notes[82-12]},
-      {v: 83, f: notes[83-12]},
-      {v: 84, f: notes[84-12]},
-      {v: 85, f: notes[85-12]},
-      {v: 86, f: notes[86-12]},
-      {v: 87, f: notes[87-12]},
-      {v: 88, f: notes[88-12]},
-      ]*/
+      //viewWindow: {min: 56, max: 88},
+      ticks: vAxisTicks //this is an array that depends on the selected (vocal) range
+      
     }
   };
 
