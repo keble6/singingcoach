@@ -45,6 +45,13 @@ const tTone = tBeat/2;  //tone sounds for a quarter of the scale note
 const trf = 0.005; //rise fall time of tone
 const toneOn=1; //on & off gains
 const toneOff=0.001;
+ //Scale notes - can extend this OBJECT to 2 octaves, or upper & lower
+ // Would be good to use note NAMES instead of numbers - needs another layer of lookup
+const scaleNotes = {
+  "soprano":    [60, 62, 64, 65, 67, 69, 71, 72, 71, 69, 67, 65, 64, 62, 60], //Cmaj
+  "mezzo":      [57, 59, 61, 62, 64, 66, 68, 69, 68, 66, 64, 62, 61, 59, 57], //Amaj
+  "contralto":  [53, 55, 57, 58, 60, 62, 64, 65, 64, 62, 60, 58, 57, 55, 53], //Fmaj
+  };
 
 /*************** notes array************/
 /* names of the notes in sequence ******/
@@ -63,9 +70,23 @@ const notes = [
 
 
 /***************** START **********************/
+var range = "mezzo";  //default
+function getRange() { //this gets called for scale playing and chart
+  var ele = document.getElementsByName('range');
+  for(i = 0; i < ele.length; i++) {
+    if(ele[i].checked){
+      range = ele[i].value;
+      return range;
+    }
+  }
+}
+
+console.log('range = ',range);
 // load the chart's Google code and then call drawChart function
 google.charts.load('current', {'packages':['corechart']});
 google.charts.setOnLoadCallback(UpdateLoop);
+
+
 
 // The overall timing loop - runs every tTick ms
 setInterval(UpdateLoop, tTick);
@@ -115,19 +136,6 @@ function UpdateLoop() {
   
 }
 
-/************* GetRange() **********/
-// get selected vocal range in HTML page
-
-function getRange(){
-  var ele = document.getElementsByName('range');
-              
-  for(i = 0; i < ele.length; i++) {
-    if(ele[i].checked){
-      var range = ele[i].value;
-      console.log('range = ',range);
-    }
-  }
-}
 
 /************ playNote (for scale mode) ***********/
 function playNote(audioContext,frequency, startTime, endTime) {
@@ -161,14 +169,12 @@ function startScale(){  // once the scale has started we let it complete (prefer
     analyserScale.connect(audioContext.destination);
     //the following scale notes will have to be user selectable
     // need to combine MIDI notes list in drawChart with notes list above
-    
-    //Cmaj for soprano
-    const scaleNotes = [60, 62, 64, 65, 67, 69, 71, 72, 71, 69, 67, 65, 64, 62, 60];
-    
+    range = getRange();
     var  now = audioContext.currentTime;
     //play the scale (15 notes, up and down)
-    for(var i=0; i<16; i++){
-      playNote(audioContext,frequencyFromNoteNumber(scaleNotes[i]), now+i*tBeat, now + i*tBeat+tTone);
+    for(var i=0; i<scaleNotes[range].length; i++){
+      //console.log(scaleNotes[range][i]);
+      playNote(audioContext,frequencyFromNoteNumber(scaleNotes[range][i]), now+i*tBeat, now + i*tBeat+tTone);
     }
     return "stop";
   }
@@ -223,10 +229,34 @@ function frequencyFromNoteNumber( note ) {
 	return 440 * Math.pow(2,(note-69)/12);
 }
 
-
+// experiment with vAxis ticks ARRAY
+/*vAxisTicks= [
+      {v: 56, f: notes[56-12]}, {v: 57, f: notes[57-12]}, {v: 58, f: notes[58-12]}, {v: 59, f: notes[59-12]},
+      {v: 60, f: notes[60-12]}, {v: 61, f: notes[61-12]}, {v: 62, f: notes[62-12]}, {v: 63, f: notes[63-12]},
+      {v: 64, f: notes[64-12]}, {v: 65, f: notes[65-12]}, {v: 66, f: notes[66-12]}, {v: 67, f: notes[67-12]},
+      {v: 68, f: notes[68-12]}, {v: 69, f: notes[69-12]}, {v: 70, f: notes[70-12]}, {v: 71, f: notes[71-12]},
+      {v: 72, f: notes[72-12]}, {v: 73, f: notes[73-12]}, {v: 74, f: notes[74-12]}, {v: 75, f: notes[75-12]},
+      {v: 76, f: notes[76-12]}, {v: 77, f: notes[77-12]}, {v: 78, f: notes[78-12]}, {v: 79, f: notes[79-12]},
+      {v: 80, f: notes[80-12]}, {v: 81, f: notes[81-12]}, {v: 82, f: notes[82-12]}, {v: 83, f: notes[83-12]},
+      {v: 84, f: notes[84-12]}, {v: 85, f: notes[85-12]}, {v: 86, f: notes[86-12]}, {v: 87, f: notes[87-12]},
+      {v: 88, f: notes[88-12]},
+      ];*/
+      
 /*******************drawChart********************** */
 
 function drawChart() {
+  vAxisTicks= [
+      {v: 56, f: notes[56-12]}, {v: 57, f: notes[57-12]}, {v: 58, f: notes[58-12]}, {v: 59, f: notes[59-12]},
+      {v: 60, f: notes[60-12]}, {v: 61, f: notes[61-12]}, {v: 62, f: notes[62-12]}, {v: 63, f: notes[63-12]},
+      {v: 64, f: notes[64-12]}, {v: 65, f: notes[65-12]}, {v: 66, f: notes[66-12]}, {v: 67, f: notes[67-12]},
+      {v: 68, f: notes[68-12]}, {v: 69, f: notes[69-12]}, {v: 70, f: notes[70-12]}, {v: 71, f: notes[71-12]},
+      {v: 72, f: notes[72-12]}, {v: 73, f: notes[73-12]}, {v: 74, f: notes[74-12]}, {v: 75, f: notes[75-12]},
+      {v: 76, f: notes[76-12]}, {v: 77, f: notes[77-12]}, {v: 78, f: notes[78-12]}, {v: 79, f: notes[79-12]},
+      {v: 80, f: notes[80-12]}, {v: 81, f: notes[81-12]}, {v: 82, f: notes[82-12]}, {v: 83, f: notes[83-12]},
+      {v: 84, f: notes[84-12]}, {v: 85, f: notes[85-12]}, {v: 86, f: notes[86-12]}, {v: 87, f: notes[87-12]},
+      {v: 88, f: notes[88-12]},
+      ];
+  
   document.getElementById("time").innerHTML = Math.round(chartTime/1000.0) ;
   //now assemble the scale and voice arrays
   var voiceNote = voiceArray[voiceArray.length - 1];
@@ -250,8 +280,9 @@ function drawChart() {
     },
     vAxis: {
       viewWindow: {min: 56, max: 88},
+      vAxisTicks,
       //soprano scale C4-C6 with 4 notes each side
-      ticks: [   // this table is based on Scientific Pitch Notation - which is NOT universal (some change the octave number at A!)
+      /*ticks: [   // this table is based on Scientific Pitch Notation - which is NOT universal (some change the octave number at A!)
       {v: 56, f: notes[56-12]},
       {v: 57, f: notes[57-12]},
       {v: 58, f: notes[58-12]},
@@ -285,7 +316,7 @@ function drawChart() {
       {v: 86, f: notes[86-12]},
       {v: 87, f: notes[87-12]},
       {v: 88, f: notes[88-12]},
-      ]
+      ]*/
     }
   };
 
