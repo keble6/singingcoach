@@ -71,17 +71,20 @@ const notes = [
 
 /***************** START **********************/
 var range = "mezzo";  //default
+
 function getRange() { //this gets called for scale playing and chart
+  
   var ele = document.getElementsByName('range');
   for(i = 0; i < ele.length; i++) {
     if(ele[i].checked){
       range = ele[i].value;
-      return range;
+      //return range;
+      alert('range after Submit ='+ range);
     }
   }
 }
 
-console.log('range = ',range);
+//console.log('range = ',range);
 // load the chart's Google code and then call drawChart function
 google.charts.load('current', {'packages':['corechart']});
 google.charts.setOnLoadCallback(UpdateLoop);
@@ -169,7 +172,7 @@ function startScale(){  // once the scale has started we let it complete (prefer
     analyserScale.connect(audioContext.destination);
     //the following scale notes will have to be user selectable
     // need to combine MIDI notes list in drawChart with notes list above
-    range = getRange();
+    //range = getRange();
     var  now = audioContext.currentTime;
     //play the scale (15 notes, up and down)
     for(var i=0; i<scaleNotes[range].length; i++){
@@ -185,13 +188,13 @@ function toggleVoiceInput() {
   if (isVoice) {  //switch off
   document.querySelector('#voice').textContent=
    'start voice input';
-  console.log('Voice stop');
+  //console.log('Voice stop');
     isVoice = false;
   }
   else {
     document.querySelector('#voice').textContent=
    'stop voice input';
-    console.log('Voice start');
+    //console.log('Voice start');
     isVoice = true;
     audioContext = new AudioContext();
     sampleRateVoice = audioContext.sampleRate;
@@ -231,7 +234,7 @@ function frequencyFromNoteNumber( note ) {
 
 // experiment with vAxis ticks ARRAY - show gridlien for each note but vaxis tick every 2
 // this is the soprano array - need others too - use constructor?
-vAxisTicks= [
+/*vAxisTicks= [
       {v: 56, f: notes[56-12]}, {v: 57}, {v: 58, f: notes[58-12]}, {v: 59},
       {v: 60, f: notes[60-12]}, {v: 61}, {v: 62, f: notes[62-12]}, {v: 63},
       {v: 64, f: notes[64-12]}, {v: 65}, {v: 66, f: notes[66-12]}, {v: 67},
@@ -241,7 +244,22 @@ vAxisTicks= [
       {v: 80, f: notes[80-12]}, {v: 81}, {v: 82, f: notes[82-12]}, {v: 83},
       {v: 84, f: notes[84-12]}, {v: 85}, {v: 86, f: notes[86-12]}, {v: 87},
       {v: 88, f: notes[88-12]},
-      ];
+      ];*/
+      
+      //New method for generating vAxisTicks
+switch (range) {
+  case "soprano": startTick=60-4; break;//start at note C4
+  case "mezzo": startTick=57-4; break;
+  case "contralto": startTick=54-4; break;
+}
+var rangeNotes=[];
+console.log('range', range, 'startTick',startTick);
+for (let i = startTick; i < (startTick+32); i++){ //2 octaves with 4 notes either side
+  rangeNotes[i] = notes[i-12];
+}
+const vAxisTicks = Object.entries(rangeNotes).map(([key,val]) => {
+  return {v: key, f: val}
+});
       
 /*******************drawChart********************** */
 
