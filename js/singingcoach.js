@@ -17,6 +17,9 @@ var chartReady = true;
 var voiceArray = [60]; //initial chart tables
 var scaleArray = [60];
 var timeAndNote = [[performance.now(),60, 60],[performance.now()+tTick,60, 60]];
+var vAxisTicks={};  //y axis objects that will be changed with vocal range
+var viewWindowMin, viewWindowMax;
+const vAxisMargin = 4; //show this number of notes above and below the vocal range
 
 /****************** Audio ********************/
 var buflen = 1024;
@@ -55,7 +58,7 @@ const scaleNotes = {
 
 /*************** notes array************/
 /* names of the notes in sequence ******/
-/*** first item is MIDI note 12  *******/
+/*** first (0th) item is MIDI note 12  *******/
 const notes = [
     'C0','Db0','D0','Eb0', 'E0', 'F0', 'Gb0', 'G0', 'Ab0', 'A0', 'Bb0', 'B0',
     'C1','Db1','D1','Eb1', 'E1', 'F1', 'Gb1', 'G1', 'Ab1', 'A1', 'Bb1', 'B1',
@@ -70,21 +73,18 @@ const notes = [
 
 
 /***************** START **********************/
-var range = "mezzo";  //default
+var range = "mezzo";  //default at start-up
+generateVaxisObjs(range); //construct the objects for chart axis
 
-function getRange() { //this gets called for scale playing and chart
-  
+function getRange() { //this gets called when user changes vocal range
   var ele = document.getElementsByName('range');
   for(i = 0; i < ele.length; i++) {
     if(ele[i].checked){
       range = ele[i].value;
-      //return range;
-      alert('range after Submit ='+ range);
+      generateVaxisObjs(range);  //construct the object for chart axis
     }
   }
 }
-
-//console.log('range = ',range);
 // load the chart's Google code and then call drawChart function
 google.charts.load('current', {'packages':['corechart']});
 google.charts.setOnLoadCallback(UpdateLoop);
@@ -246,20 +246,31 @@ function frequencyFromNoteNumber( note ) {
       {v: 88, f: notes[88-12]},
       ];*/
       
-      //New method for generating vAxisTicks
-switch (range) {
-  case "soprano": startTick=60-4; break;//start at note C4
-  case "mezzo": startTick=57-4; break;
-  case "contralto": startTick=54-4; break;
+/**** Generate two objects for the chart y axis ****/
+
+
+function generateVaxisObjs(range) { //New method for generating vAxisTicks
+  var startTick;
+  
+  switch (range) {
+    case "soprano": startTick=60-vAxisMargin; break;//start at note C4
+    case "mezzo": startTick=57-vAxisMargin; break;
+    case "contralto": startTick=54-vAxisMargin; break;
+  }
+  viewWindowMin = startTick;  //variables will be used in drawChart to limit y axis
+  viewWindowMax = startTick+24+2*vAxisMargin;
+  
+  // vAxisTicks has the format: [{v: 56, f: notes[56-12]},...] for Google Charts
+  var rangeNotes=[];
+  for (let i = startTick; i < (startTick+24+2*vAxisMargin); i++){ //2 octaves with 4 notes either side
+    rangeNotes[i] = notes[i-12];
+  }
+  vAxisTicks = Object.entries(rangeNotes).map(([key,val]) => {
+    return {v: key, f: val}
+  });
 }
-var rangeNotes=[];
-console.log('range', range, 'startTick',startTick);
-for (let i = startTick; i < (startTick+32); i++){ //2 octaves with 4 notes either side
-  rangeNotes[i] = notes[i-12];
-}
-const vAxisTicks = Object.entries(rangeNotes).map(([key,val]) => {
-  return {v: key, f: val}
-});
+      
+
       
 /*******************drawChart********************** */
 
@@ -286,7 +297,7 @@ function drawChart() {
       },
     },
     vAxis: {
-      //viewWindow: {min: 56, max: 88},
+      viewWindow: {min: viewWindowMin, max: viewWindowMax},
       ticks: vAxisTicks //this is an array that depends on the selected (vocal) range
       
     }
