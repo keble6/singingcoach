@@ -6,6 +6,7 @@
   Button text index.html DONE
   config for scales etc
 */
+/************ SLIDER TESTING ********/
 
 
 /************************ INITIALISATION ****************************/
@@ -44,7 +45,7 @@ const constraints = window.constraints = {
 //scale playback parameters
 const tempo = 20; //beats per minute
 const tBeat = 60 / tempo; //seconds per beat
-const tTone = tBeat/2;  //tone sounds for a quarter of the scale note
+const tTone = tBeat/8;  //tone sounds for a quarter of the scale note
 const trf = 0.005; //rise fall time of tone
 const toneOn=1; //on & off gains
 const toneOff=0.001;
