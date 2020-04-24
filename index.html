@@ -2,9 +2,32 @@
 <html>
 	<head>
 		<title>Singing Coach</title>
-
+  <style>
+    .rangeslider{
+      width: 50%;
+    }
+    .myslider {
+      -webkit-appearance: none;
+      background: #FCF3CF  ;
+      width: 50%;
+      height: 20px;
+      opacity: 2;
+    }
+  
+    .myslider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      cursor: pointer;
+      background: #34495E  ;
+      width: 5%;
+      height: 20px;
+    }
+    .myslider:hover {
+      opacity: 1;
+    }
+  </style>
 		
 	</head>
+	
 	<body>
 		<script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
     <script src="js/singingcoach.js"></script>
@@ -27,6 +50,23 @@
 
 
     <div id="curve_chart" style="width: 700px; height: 700px"></div>
+    
+    <div class="rangeslider">
+      <input type="range" min="10" max="100" value="30"
+                  class="myslider" id="tempo">
+      <p>Value: <span id="demo"></span></p>
+    </div>
+    
+    <script>
+    //CODE FOR SLIDERS MUST BE HERE TO AVOID LOAD TIMING PROBLEMS!!!!!
+      var tempoSlider = document.getElementById("tempo");
+      var tempoOutput = document.getElementById("demo");
+      tempoOutput.innerHTML = tempoSlider.value;
+  
+      tempoSlider.oninput = function() {
+        tempoOutput.innerHTML = this.value;
+      }
+    </script>
     
 	</body>
   
