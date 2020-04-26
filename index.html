@@ -1,73 +1,60 @@
-<!doctype html>
+<!DOCTYPE html>
 <html>
-	<head>
-		<title>Singing Coach</title>
-  <style>
-    .rangeslider{
-      width: 50%;
-    }
-    .myslider {
-      -webkit-appearance: none;
-      background: #FCF3CF  ;
-      width: 50%;
-      height: 20px;
-      opacity: 2;
-    }
-  
-    .myslider::-webkit-slider-thumb {
-      -webkit-appearance: none;
-      cursor: pointer;
-      background: #34495E  ;
-      width: 5%;
-      height: 20px;
-    }
-    .myslider:hover {
-      opacity: 1;
-    }
-  </style>
-		
-	</head>
-	
-	<body>
-		<script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
-    <script src="js/singingcoach.js"></script>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width">
+    <title>repl.it</title>
+    <link href="style.css" rel="stylesheet" type="text/css" />
+  </head>
+  <body>
+    <div class="grid">
 
-		<p>
-			<button type="button" onclick="toggleVoiceInput()" id="voice">start voice input</button>
-			<button type="button" onclick="startScale()" id="scale">start scale</button>
-			
-		</p>
-		
-		<p>Vocal range:<br>
-			<input type="radio" name="range" value="soprano">Soprano C4 - C6<br>
-      <input type="radio" name="range" value="mezzo" checked>Mezzo-soprano A3-A5<br>
-      <input type="radio" name="range" value="contralto">Contralto F3-F5<br>
-      <button type="button" onclick="getRange()">Submit</button>
-
-    </p>
+      <div class="title"><h3>Singing coach</h3></div>
       
-		<p id="time"></p>
+      <div class="onoff">
+        <br>
+        <button type="button" onclick="toggleVoiceInput()" id="voice">start voice</button><br>
+			<button type="button" onclick="startScale()" id="scale">start scale</button>
+      </div>
 
+      <div class="range"><p style="text-align:center">  <b>Vocal range</b></p>
+			  <pre><input type="radio" name="range" value="soprano">Soprano       C4-C6</pre>
+        <pre><input type="radio" name="range" value="mezzo" checked>Mezzo-soprano A3-A5</pre>
+        <pre><input type="radio" name="range" ,value="contralto">Contralto     F3-F5</pre>
+        <button type="button" onclick="getRange()">Submit</button>
+      </div>
 
-    <div id="curve_chart" style="width: 700px; height: 700px"></div>
-    
-    <div class="rangeslider">
-      <input type="range" min="10" max="100" value="30"
+      <div class="tempo"><p style="text-align:center"> <b>Scale setup</b></p>
+        <div class="rangeslider">
+          <label for="tempo">Tempo (bpm)</label>
+          <input type="range" min="10" max="100" value="30"
                   class="myslider" id="tempo">
-      <p>Value: <span id="demo"></span></p>
+          <p style="text-align:center" id="tempoOut"></p><br>
+          <label for="duration">Note length</label>
+          <input type="range" min="0.25" max="1" value="0.5" step="0.25"
+                  class="myslider" id="duration">
+          <p style="text-align:center"  id="durOut"></p>
+       </div>
+      </div>
+      <div class="time">time (s):</div>
+      <div class="curve_chart"></div>
+
     </div>
-    
+    <script src="script.js"></script>
     <script>
     //CODE FOR SLIDERS MUST BE HERE TO AVOID LOAD TIMING PROBLEMS!!!!!
       var tempoSlider = document.getElementById("tempo");
-      var tempoOutput = document.getElementById("demo");
+      var tempoOutput = document.getElementById("tempoOut");
       tempoOutput.innerHTML = tempoSlider.value;
-  
       tempoSlider.oninput = function() {
         tempoOutput.innerHTML = this.value;
       }
+      var durSlider = document.getElementById("duration");
+      var durOutput = document.getElementById("durOut");
+      durOutput.innerHTML = durSlider.value;
+      durSlider.oninput = function() {
+        durOutput.innerHTML = this.value;
+      }
     </script>
-    
-	</body>
-  
+  </body>
 </html>
