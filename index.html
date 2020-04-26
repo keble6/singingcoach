@@ -36,11 +36,15 @@
           <p style="text-align:center"  id="durOut"></p>
        </div>
       </div>
-      <div class="time">time (s):</div>
-      <div class="curve_chart"></div>
+      <div class="time"  id="time">time (s):</div>
+      <div class="curve_chart" id="curve_chart"></div>
 
     </div>
-    <script src="script.js"></script>
+    
+    <script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
+    <script type="text/javascript">
+      google.charts.load('current', {packages: ['corechart']});
+    </script>
     <script>
     //CODE FOR SLIDERS MUST BE HERE TO AVOID LOAD TIMING PROBLEMS!!!!!
       var tempoSlider = document.getElementById("tempo");
@@ -56,5 +60,6 @@
         durOutput.innerHTML = this.value;
       }
     </script>
+    <script src="js/singingcoach.js"></script>
   </body>
 </html>
