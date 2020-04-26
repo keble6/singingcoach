@@ -4,7 +4,7 @@
 }
 .grid {
   display: grid;
-  grid-template-columns: 0.5fr 1fr 1fr;
+  grid-template-columns: 0.5fr 0.8fr 1.2fr;
 }
 
 .title{
@@ -30,9 +30,11 @@
 .myslider {
       -webkit-appearance: none;
       background: rgb(248, 212, 7)  ;
-      width: 50%;
+      width: 60%;
       height: 5px;
       opacity: 2;
+      float: right;
+      margin-right:10px;
 }
   
 .myslider::-webkit-slider-thumb {
@@ -46,10 +48,11 @@
       opacity: 1;
 }
 
-h3 {text-align: center; font-size: 100%}
+h3 {text-align: left; font-size: 100%}
 div.range {
   font-size: 90%;
 }
 div.rangeslider {
   font-size: 90%;
 }
+
