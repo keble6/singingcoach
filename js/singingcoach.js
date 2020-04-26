@@ -1,10 +1,9 @@
 /* This branch uses the Tartini pitch detector   */
 /* TODOs */
 /*
-  Add time now on canvas DONE
-  Get restart for voice DONE
-  Button text index.html DONE
-  config for scales etc
+  config for 1, 2, upper, lower octaves scales
+  restart isn't clean
+  test effects of buflen etc
 */
 /************ SLIDER TESTING ********/
 
@@ -43,9 +42,8 @@ const constraints = window.constraints = {
 
 /********************* SCALE Globals ****************************/
 //scale playback parameters
-const tempo = 20; //beats per minute
-const tBeat = 60 / tempo; //seconds per beat
-const tTone = tBeat/8;  //tone sounds for a quarter of the scale note
+var tBeat = 60 / tempoSlider.value; //seconds per beat
+var tTone = tBeat*durSlider.value;  //tone sounds for durSlider.value of the scale note
 const trf = 0.005; //rise fall time of tone
 const toneOn=1; //on & off gains
 const toneOff=0.001;
@@ -86,11 +84,8 @@ function getRange() { //this gets called when user changes vocal range
     }
   }
 }
-// load the chart's Google code and then call drawChart function
-google.charts.load('current', {'packages':['corechart']});
+// after load, staqrt thge chart update loop
 google.charts.setOnLoadCallback(UpdateLoop);
-
-
 
 // The overall timing loop - runs every tTick ms
 setInterval(UpdateLoop, tTick);
@@ -188,13 +183,12 @@ function startScale(){  // once the scale has started we let it complete (prefer
 function toggleVoiceInput() {
   if (isVoice) {  //switch off
   document.querySelector('#voice').textContent=
-   'start voice input';
-  //console.log('Voice stop');
+   'start voice';
     isVoice = false;
   }
   else {
     document.querySelector('#voice').textContent=
-   'stop voice input';
+   'stop voice';
     //console.log('Voice start');
     isVoice = true;
     audioContext = new AudioContext();
@@ -280,12 +274,11 @@ function drawChart() {
   //now assemble the scale and voice arrays
   var voiceNote = voiceArray[voiceArray.length - 1];
   var scaleNote = scaleArray[scaleArray.length - 1];
-  //console.log(scaleNote);
-  //console.log(Math.round(currentTime), scaleNote);
   timeAndNote.push([chartTime, voiceNote, scaleNote]) ;
   var data = google.visualization.arrayToDataTable(timeAndNote, true);
 
   var options = {
+    chartArea: {left: 50,top:0},
     //title: 'note vs time',
     curveType: 'none',
     legend: { position: 'bottom' },
@@ -319,7 +312,7 @@ function readyHandler() {
         }
 
 /********************** TARTINI CODDE ***********************/
-/**** chnaged to return 0 instead of null for bad case ****/
+/**** changed to return 0 instead of null for bad case ****/
 onmessage = function(e) {
   const startTime = performance.now();
   const pitch = getPitch(new Float32Array(e.data.buffer), e.data.sampleRate);
