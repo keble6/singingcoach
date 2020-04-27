@@ -18,22 +18,26 @@
       </div>
 
       <div class="range"><p style="text-align:center">  <b>Vocal range</b></p>
-			  <pre><input type="radio" name="range" value="soprano">Soprano       C4-C6</pre>
-        <pre><input type="radio" name="range" value="mezzo" checked>Mezzo-soprano A3-A5</pre>
-        <pre><input type="radio" name="range" ,value="contralto">Contralto     F3-F5</pre>
-        <button type="button" onclick="getRange()">Submit</button>
+			  <pre><input type="radio" name="range" value="soprano" onClick="getRange(this.value)">Soprano       C4-C6</pre>
+        <pre><input type="radio" name="range" value="mezzo" onClick="getRange(this.value)" checked>Mezzo-soprano A3-A5</pre>
+        <pre><input type="radio" name="range" value="contralto" onClick="getRange(this.value)">Contralto     F3-F5</pre>
       </div>
 
       <div class="tempo"><p style="text-align:center"> <b>Scale setup</b></p>
         <div class="rangeslider">
-          <label for="tempo">Tempo (bpm)</label>
-          <input type="range" min="10" max="50" value="30"
+          <label for="tempo"><b>Tempo (bpm): </b></label>
+          <input type="range" min="10" max="50" value="20"
                   class="myslider" id="tempo">
           <p style="text-align:center" id="tempoOut"></p><br>
-          <label for="duration">Note length</label>
+          <label for="duration"><b>Note length:</b></label>
           <input type="range" min="0.25" max="1" value="0.5" step="0.25"
                   class="myslider" id="duration">
           <p style="text-align:center"  id="durOut"></p>
+          <br><b>Scale octaves: </b>
+            <input type="radio" name="octave" value="lower" onClick="getOctave(this.value)" checked> Lower
+            <input type="radio" name="octave" value="upper" onClick="getOctave(this.value)"> Upper
+            <input type="radio" name="octave" value="both" onClick="getOctave(this.value)"> Both<br>
+
        </div>
       </div>
       <div class="time"  id="time">time (s):</div>
