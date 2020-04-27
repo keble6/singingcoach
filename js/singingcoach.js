@@ -49,11 +49,7 @@ const toneOn=1; //on & off gains
 const toneOff=0.001;
  //Scale notes - can extend this OBJECT to 2 octaves, or upper & lower
  // Would be good to use note NAMES instead of numbers - needs another layer of lookup
-const scaleNotes = {
-  "soprano":    [60, 62, 64, 65, 67, 69, 71, 72, 71, 69, 67, 65, 64, 62, 60], //Cmaj
-  "mezzo":      [57, 59, 61, 62, 64, 66, 68, 69, 68, 66, 64, 62, 61, 59, 57], //Amaj
-  "contralto":  [53, 55, 57, 58, 60, 62, 64, 65, 64, 62, 60, 58, 57, 55, 53], //Fmaj
-  };
+ 
 
 /*************** notes array************/
 /* names of the notes in sequence ******/
@@ -73,16 +69,19 @@ const notes = [
 
 /***************** START **********************/
 var range = "mezzo";  //default at start-up
+var octave = "lower";
 generateVaxisObjs(range); //construct the objects for chart axis
 
-function getRange() { //this gets called when user changes vocal range
-  var ele = document.getElementsByName('range');
-  for(i = 0; i < ele.length; i++) {
-    if(ele[i].checked){
-      range = ele[i].value;
-      generateVaxisObjs(range);  //construct the object for chart axis
-    }
-  }
+function getRange(clicked) { //this gets called when user changes vocal range
+  range=clicked;
+  //console.log('range', clicked, range);
+  generateVaxisObjs(range);
+}
+
+function getOctave(clicked) { //this gets called when user changes octave
+  octave=clicked;
+  //console.log('octaves', octave);
+
 }
 // after load, staqrt thge chart update loop
 google.charts.setOnLoadCallback(UpdateLoop);
@@ -134,7 +133,17 @@ function UpdateLoop() {
   }
   
 }
+  //version of scaleNotes with case
+  //TODO write maths for scales
+   //major scales sequence is 0 +2 +2 +1 +2 +2 +2 +1
 
+var scaleNotes = [];
+  switch(range) {
+    case("soprano"):      scaleNotes = [60, 62, 64, 65, 67, 69, 71, 72, 71, 69, 67, 65, 64, 62, 60]; break; //Cmaj
+    case("mezzo"):        scaleNotes = [57, 59, 61, 62, 64, 66, 68, 69, 68, 66, 64, 62, 61, 59, 57]; break; //Amaj
+    case("contralto"):    scaleNotes = [53, 55, 57, 58, 60, 62, 64, 65, 64, 62, 60, 58, 57, 55, 53]; break;//Fmaj
+    default:              scaleNotes = [60, 60, 60, 60, 60, 60, 60, 60, 60, 60, 60, 60, 60, 60, 60];
+  }
 
 /************ playNote (for scale mode) ***********/
 function playNote(audioContext,frequency, startTime, endTime) {
@@ -171,9 +180,8 @@ function startScale(){  // once the scale has started we let it complete (prefer
     //range = getRange();
     var  now = audioContext.currentTime;
     //play the scale (15 notes, up and down)
-    for(var i=0; i<scaleNotes[range].length; i++){
-      //console.log(scaleNotes[range][i]);
-      playNote(audioContext,frequencyFromNoteNumber(scaleNotes[range][i]), now+i*tBeat, now + i*tBeat+tTone);
+    for(var i=0; i<scaleNotes.length; i++){
+      playNote(audioContext,frequencyFromNoteNumber(scaleNotes[i]), now+i*tBeat, now + i*tBeat+tTone);
     }
     return "stop";
   }
