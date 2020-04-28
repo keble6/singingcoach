@@ -1,12 +1,12 @@
 /* This branch uses the Tartini pitch detector   */
 /* TODOs */
 /*
-  config for 1, 2, upper, lower octaves scales
+  config for 1, 2, upper, lower octaves scales DONE
+  initial values of arrays - use start from octave?
   restart isn't clean
+  layout of scale setup section
   test effects of buflen etc
 */
-/************ SLIDER TESTING ********/
-
 
 /************************ INITIALISATION ****************************/
 //parameters for the chart table
@@ -42,27 +42,26 @@ const constraints = window.constraints = {
 
 /********************* SCALE Globals ****************************/
 //scale playback parameters
+var scaleNotes=[];
 var tBeat = 60 / tempoSlider.value; //seconds per beat
 var tTone = tBeat*durSlider.value;  //tone sounds for durSlider.value of the scale note
 const trf = 0.005; //rise fall time of tone
 const toneOn=1; //on & off gains
 const toneOff=0.001;
- //Scale notes - can extend this OBJECT to 2 octaves, or upper & lower
- // Would be good to use note NAMES instead of numbers - needs another layer of lookup
  
 
 /*************** notes array************/
 /* names of the notes in sequence ******/
 /*** first (0th) item is MIDI note 12  *******/
 const notes = [
-    'C0','Db0','D0','Eb0', 'E0', 'F0', 'Gb0', 'G0', 'Ab0', 'A0', 'Bb0', 'B0',
-    'C1','Db1','D1','Eb1', 'E1', 'F1', 'Gb1', 'G1', 'Ab1', 'A1', 'Bb1', 'B1',
-    'C2','Db2','D2','Eb2', 'E2', 'F2', 'Gb2', 'G2', 'Ab2', 'A2', 'Bb2', 'B2',
-    'C3','Db3','D3','Eb3', 'E3', 'F3', 'Gb3', 'G3', 'Ab3', 'A3', 'Bb3', 'B3',
-    'C4','Db4','D4','Eb4', 'E4', 'F4', 'Gb4', 'G4', 'Ab4', 'A4', 'Bb4', 'B4',
-    'C5','Db5','D5','Eb5', 'E5', 'F5', 'Gb5', 'G5', 'Ab5', 'A5', 'Bb5', 'B5',
-    'C6','Db6','D6','Eb6', 'E6', 'F6', 'Gb6', 'G6', 'Ab6', 'A6', 'Bb6', 'B6',
-    'C7','Db7','D7','Eb7', 'E7', 'F7', 'Gb7', 'G7', 'Ab7', 'A7', 'Bb7', 'B7'
+    'C0','C#/Db0','D0','D#/Eb0', 'E0', 'F0', 'F#/Gb0', 'G0', 'G#/Ab0', 'A0', 'A#/Bb0', 'B0',
+    'C1','C#/Db1','D1','D#/Eb1', 'E1', 'F1', 'F#/Gb1', 'G1', 'G#/Ab1', 'A1', 'A#/Bb1', 'B1',
+    'C2','C#/Db2','D2','D#/Eb2', 'E2', 'F2', 'F#/Gb2', 'G2', 'G#/Ab2', 'A2', 'A#/Bb2', 'B2',
+    'C3','C#/Db3','D3','D#/Eb3', 'E3', 'F3', 'F#/Gb3', 'G3', 'G#/Ab3', 'A3', 'A#/Bb3', 'B3',
+    'C4','C#/Db4','D4','D#/Eb4', 'E4', 'F4', 'F#/Gb4', 'G4', 'G#/Ab4', 'A4', 'A#/Bb4', 'B4',
+    'C5','C#/Db5','D5','D#/Eb5', 'E5', 'F5', 'F#/Gb5', 'G5', 'G#/Ab5', 'A5', 'A#/Bb5', 'B5',
+    'C6','C#/Db6','D6','D#/Eb6', 'E6', 'F6', 'F#/Gb6', 'G6', 'G#/Ab6', 'A6', 'A#/Bb6', 'B6',
+    'C7','C#/Db7','D7','D#/Eb7', 'E7', 'F7', 'F#/Gb7', 'G7', 'G#/Ab7', 'A7', 'A#/Bb7', 'B7'
     
 ];
 
@@ -71,6 +70,8 @@ const notes = [
 var range = "mezzo";  //default at start-up
 var octave = "lower";
 generateVaxisObjs(range); //construct the objects for chart axis
+getScale();
+
 
 function getRange(clicked) { //this gets called when user changes vocal range
   range=clicked;
@@ -80,10 +81,10 @@ function getRange(clicked) { //this gets called when user changes vocal range
 
 function getOctave(clicked) { //this gets called when user changes octave
   octave=clicked;
-  //console.log('octaves', octave);
+  getScale();
 
 }
-// after load, staqrt thge chart update loop
+// after load, start thge chart update loop
 google.charts.setOnLoadCallback(UpdateLoop);
 
 // The overall timing loop - runs every tTick ms
@@ -133,17 +134,30 @@ function UpdateLoop() {
   }
   
 }
-  //version of scaleNotes with case
-  //TODO write maths for scales
-   //major scales sequence is 0 +2 +2 +1 +2 +2 +2 +1
 
-var scaleNotes = [];
+/*** generate the notes for the scales for each range **/
+function getScale() {
   switch(range) {
-    case("soprano"):      scaleNotes = [60, 62, 64, 65, 67, 69, 71, 72, 71, 69, 67, 65, 64, 62, 60]; break; //Cmaj
-    case("mezzo"):        scaleNotes = [57, 59, 61, 62, 64, 66, 68, 69, 68, 66, 64, 62, 61, 59, 57]; break; //Amaj
-    case("contralto"):    scaleNotes = [53, 55, 57, 58, 60, 62, 64, 65, 64, 62, 60, 58, 57, 55, 53]; break;//Fmaj
-    default:              scaleNotes = [60, 60, 60, 60, 60, 60, 60, 60, 60, 60, 60, 60, 60, 60, 60];
+  case("soprano"):    start=60; break;
+  case("mezzo"):      start=57; break
+  case("contralto"):  start=53;
   }
+  //assemble the basic major scale (steps are 2, 2, 1, 2, 3, 1)
+  scaleNotes=[start];
+  scaleNotes.push(start+2,start+4, start+5, start+7, start+9, start+11, start+12);
+  //now add the down sections
+  switch(octave) {
+    case("lower"):  for(var i=0; i<7; i++)
+      scaleNotes.push(scaleNotes[6-i]); break;
+    case("upper"):  for(var i=0; i<8; i++) scaleNotes[i]=scaleNotes[i]+12;
+      for(var i=0; i<7; i++) scaleNotes.push(scaleNotes[6-i]); break;
+    case("both"):  for(var i=0; i<7; i++) scaleNotes.push(scaleNotes[i+1]+12);
+      for(var i=0; i<7; i++) scaleNotes.push(scaleNotes[6-i]+12);
+      for(var i=0; i<7; i++) scaleNotes.push(scaleNotes[6-i]); break;
+  }
+  console.log('assembled',scaleNotes);
+}
+
 
 /************ playNote (for scale mode) ***********/
 function playNote(audioContext,frequency, startTime, endTime) {
@@ -177,13 +191,13 @@ function startScale(){  // once the scale has started we let it complete (prefer
     analyserScale.connect(audioContext.destination);
     //the following scale notes will have to be user selectable
     // need to combine MIDI notes list in drawChart with notes list above
-    //range = getRange();
     var  now = audioContext.currentTime;
     //play the scale (15 notes, up and down)
+    console.log('scale notes', scaleNotes);
     for(var i=0; i<scaleNotes.length; i++){
       playNote(audioContext,frequencyFromNoteNumber(scaleNotes[i]), now+i*tBeat, now + i*tBeat+tTone);
     }
-    return "stop";
+    return;
   }
 }
 
@@ -235,22 +249,6 @@ function frequencyFromNoteNumber( note ) {
 	return 440 * Math.pow(2,(note-69)/12);
 }
 
-// experiment with vAxis ticks ARRAY - show gridlien for each note but vaxis tick every 2
-// this is the soprano array - need others too - use constructor?
-/*vAxisTicks= [
-      {v: 56, f: notes[56-12]}, {v: 57}, {v: 58, f: notes[58-12]}, {v: 59},
-      {v: 60, f: notes[60-12]}, {v: 61}, {v: 62, f: notes[62-12]}, {v: 63},
-      {v: 64, f: notes[64-12]}, {v: 65}, {v: 66, f: notes[66-12]}, {v: 67},
-      {v: 68, f: notes[68-12]}, {v: 69}, {v: 70, f: notes[70-12]}, {v: 71},
-      {v: 72, f: notes[72-12]}, {v: 73}, {v: 74, f: notes[74-12]}, {v: 75},
-      {v: 76, f: notes[76-12]}, {v: 77}, {v: 78, f: notes[78-12]}, {v: 79},
-      {v: 80, f: notes[80-12]}, {v: 81}, {v: 82, f: notes[82-12]}, {v: 83},
-      {v: 84, f: notes[84-12]}, {v: 85}, {v: 86, f: notes[86-12]}, {v: 87},
-      {v: 88, f: notes[88-12]},
-      ];*/
-      
-/**** Generate two objects for the chart y axis ****/
-
 
 function generateVaxisObjs(range) { //New method for generating vAxisTicks
   var startTick;
@@ -286,7 +284,7 @@ function drawChart() {
   var data = google.visualization.arrayToDataTable(timeAndNote, true);
 
   var options = {
-    chartArea: {left: 50,top:0},
+    chartArea: {left: 80,top:0},
     //title: 'note vs time',
     curveType: 'none',
     legend: { position: 'bottom' },
