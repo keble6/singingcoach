@@ -23,23 +23,27 @@
         <pre><input type="radio" name="range" value="contralto" onClick="getRange(this.value)">Contralto     F3-F5</pre>
       </div>
 
-      <div class="tempo"><p style="text-align:center"> <b>Scale setup</b></p>
+      <div class="scaleSetup"><p style="text-align:center"> <b>Scale setup</b></p>
+        
         <div class="rangeslider">
-          <label for="tempo"><b>Tempo (bpm): </b></label>
-          <input type="range" min="10" max="50" value="20"
+          <br>
+          <input type="range" min="5" max="25" value="10"
                   class="myslider" id="tempo">
+          <label for="tempo">Tempo (bpm)</label>
           <p style="text-align:center" id="tempoOut"></p><br>
-          <label for="duration"><b>Note length:</b></label>
-          <input type="range" min="0.25" max="1" value="0.5" step="0.25"
-                  class="myslider" id="duration">
-          <p style="text-align:center"  id="durOut"></p>
-          <br><b>Scale octaves: </b>
-            <input type="radio" name="octave" value="lower" onClick="getOctave(this.value)" checked> Lower
-            <input type="radio" name="octave" value="upper" onClick="getOctave(this.value)"> Upper
-            <input type="radio" name="octave" value="both" onClick="getOctave(this.value)"> Both<br>
 
+          <input type="range" min="0.25" max="1" value="0.5" step="0.25" class="myslider" id="duration">
+          <label for="duration">Note length</label>
+          <p style="text-align:center" id="durOut"></p><br>
+
+          <input type="range" min="0" max="2" value="0" step="1"
+                  class="myslider" id="octave">
+          <label for="octave">Scale octaves</label>
+          <p style="text-align:center"  id="octOut"></p>
        </div>
+       
       </div>
+      
       <div class="time"  id="time">time (s):</div>
       <div class="curve_chart" id="curve_chart"></div>
 
@@ -49,21 +53,41 @@
     <script type="text/javascript">
       google.charts.load('current', {packages: ['corechart']});
     </script>
+    
     <script>
     //CODE FOR SLIDERS MUST BE HERE TO AVOID LOAD TIMING PROBLEMS!!!!!
       var tempoSlider = document.getElementById("tempo");
       var tempoOutput = document.getElementById("tempoOut");
       tempoOutput.innerHTML = tempoSlider.value;
+      var tBeat = 60 / tempoSlider.value; //seconds per beat
       tempoSlider.oninput = function() {
         tempoOutput.innerHTML = this.value;
+        tBeat = 60 / this.value; //seconds per beat
       }
+      
       var durSlider = document.getElementById("duration");
       var durOutput = document.getElementById("durOut");
       durOutput.innerHTML = durSlider.value;
+      var tTone = tBeat*durSlider.value;  //tone sounds for durSlider.value of the scale note
       durSlider.oninput = function() {
         durOutput.innerHTML = this.value;
+        tTone = tBeat*this.value;
+      }
+      
+      var octaveChanged = true; //flag to run getScale if needed;
+      var octSlider = document.getElementById("octave");
+      var octOutput = document.getElementById("octOut");
+      const octWords = ["lower", "upper", "both"];
+      octOutput.innerHTML = octWords[octSlider.value];
+      var octave = octWords[octSlider.value];
+
+      octSlider.oninput = function() {
+        octOutput.innerHTML = octWords[this.value];
+        octave = octWords[this.value];
+        octaveChanged = true;
       }
     </script>
     <script src="js/singingcoach.js"></script>
+    
   </body>
 </html>
