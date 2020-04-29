@@ -2,10 +2,14 @@
 /* TODOs */
 /*
   config for 1, 2, upper, lower octaves scales DONE
-  initial values of arrays - use start from octave?
-  restart isn't clean
-  layout of scale setup section
+  initial values of arrays - use start from octave? DONE
+  restart isn't clean DONE
+  layout of scale setup section DONE
+  ONLY change scaleNotes and vAxis objects when any slider chnages (instead of in the Loop) DONE
   test effects of buflen etc
+  Change scale on/off to stopped after scale has finished DONE
+  Colour of start/stop buttons
+  Scale notes graph directly, not via pitch
 */
 
 /************************ INITIALISATION ****************************/
@@ -43,11 +47,10 @@ const constraints = window.constraints = {
 /********************* SCALE Globals ****************************/
 //scale playback parameters
 var scaleNotes=[];
-var tBeat = 60 / tempoSlider.value; //seconds per beat
-var tTone = tBeat*durSlider.value;  //tone sounds for durSlider.value of the scale note
 const trf = 0.005; //rise fall time of tone
 const toneOn=1; //on & off gains
 const toneOff=0.001;
+
  
 
 /*************** notes array************/
@@ -70,7 +73,7 @@ const notes = [
 var range = "mezzo";  //default at start-up
 var octave = "lower";
 generateVaxisObjs(range); //construct the objects for chart axis
-getScale();
+getScale(octave);
 
 
 function getRange(clicked) { //this gets called when user changes vocal range
@@ -79,21 +82,24 @@ function getRange(clicked) { //this gets called when user changes vocal range
   generateVaxisObjs(range);
 }
 
-function getOctave(clicked) { //this gets called when user changes octave
-  octave=clicked;
-  getScale();
-
-}
-// after load, start thge chart update loop
+// after load, start the chart update loop
 google.charts.setOnLoadCallback(UpdateLoop);
 
-// The overall timing loop - runs every tTick ms
+/********* The overall timing loop - runs every tTick ms ***********/
 setInterval(UpdateLoop, tTick);
 
 function UpdateLoop() {
 
   if(isScale || isVoice){
     chartTime=performance.now();
+
+    if(octaveChanged){  //need to update scale notes and chart axis
+      getScale(octave);
+      generateVaxisObjs(range);
+      octaveChanged=false;
+    }
+
+    
     if(isScale) {
       analyserScale.getFloatTimeDomainData( bufScale );
       pitch = getPitch(bufScale,sampleRateScale);
@@ -136,10 +142,10 @@ function UpdateLoop() {
 }
 
 /*** generate the notes for the scales for each range **/
-function getScale() {
+function getScale(octave) {
   switch(range) {
   case("soprano"):    start=60; break;
-  case("mezzo"):      start=57; break
+  case("mezzo"):      start=57; break;
   case("contralto"):  start=53;
   }
   //assemble the basic major scale (steps are 2, 2, 1, 2, 3, 1)
@@ -149,18 +155,19 @@ function getScale() {
   switch(octave) {
     case("lower"):  for(var i=0; i<7; i++)
       scaleNotes.push(scaleNotes[6-i]); break;
-    case("upper"):  for(var i=0; i<8; i++) scaleNotes[i]=scaleNotes[i]+12;
-      for(var i=0; i<7; i++) scaleNotes.push(scaleNotes[6-i]); break;
-    case("both"):  for(var i=0; i<7; i++) scaleNotes.push(scaleNotes[i+1]+12);
-      for(var i=0; i<7; i++) scaleNotes.push(scaleNotes[6-i]+12);
-      for(var i=0; i<7; i++) scaleNotes.push(scaleNotes[6-i]); break;
+    case("upper"):  for(i=0; i<8; i++) scaleNotes[i]=scaleNotes[i]+12;
+      for(i=0; i<7; i++) scaleNotes.push(scaleNotes[6-i]); break;
+    case("both"):  for(i=0; i<7; i++) scaleNotes.push(scaleNotes[i+1]+12);
+      for(i=0; i<7; i++) scaleNotes.push(scaleNotes[6-i]+12);
+      for(i=0; i<7; i++) scaleNotes.push(scaleNotes[6-i]); break;
   }
-  console.log('assembled',scaleNotes);
+  // use scaleNotes[0] to fill the array
+  scaleArray[0] = scaleNotes[0];
 }
 
 
 /************ playNote (for scale mode) ***********/
-function playNote(audioContext,frequency, startTime, endTime) {
+function playNote(audioContext,frequency, startTime, endTime, last) {
 	  	gainNode = audioContext.createGain(); //to get smooth rise/fall
       oscillator = audioContext.createOscillator();
       oscillator.frequency.value=frequency;
@@ -171,6 +178,13 @@ function playNote(audioContext,frequency, startTime, endTime) {
       gainNode.gain.exponentialRampToValueAtTime(toneOff, endTime+trf);
       oscillator.start(startTime);
       oscillator.stop(endTime);
+      if(last){
+        oscillator.onended=function(){
+          console.log('last tone finished');
+          document.querySelector('#scale').textContent='start scale';
+          isScale=false;
+        }
+      }
     }
     
 function startScale(){  // once the scale has started we let it complete (prefer to stop though)
@@ -181,6 +195,7 @@ function startScale(){  // once the scale has started we let it complete (prefer
     return;
   }
   else {
+    var last = false;
     document.querySelector('#scale').textContent=
    'stop scale';
     isScale = true;
@@ -192,10 +207,13 @@ function startScale(){  // once the scale has started we let it complete (prefer
     //the following scale notes will have to be user selectable
     // need to combine MIDI notes list in drawChart with notes list above
     var  now = audioContext.currentTime;
-    //play the scale (15 notes, up and down)
-    console.log('scale notes', scaleNotes);
+    //play the scale
+    //console.log('scale notes', scaleNotes);
     for(var i=0; i<scaleNotes.length; i++){
-      playNote(audioContext,frequencyFromNoteNumber(scaleNotes[i]), now+i*tBeat, now + i*tBeat+tTone);
+      if(i==scaleNotes.length-1){
+        last=true;  //use this to signal last tone
+      }
+      playNote(audioContext,frequencyFromNoteNumber(scaleNotes[i]), now+i*tBeat, now + i*tBeat+tTone, last);
     }
     return;
   }
