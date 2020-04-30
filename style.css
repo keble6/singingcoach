@@ -55,6 +55,7 @@ div.range {
   font-size: 90%;
 }
 div.onoff {
+  text-align: center;
   border: 2px solid black;
   margin: 20px;
   border-radius: 12px;
