@@ -8,7 +8,8 @@
   ONLY change scaleNotes and vAxis objects when any slider chnages (instead of in the Loop) DONE
   test effects of buflen etc
   Change scale on/off to stopped after scale has finished DONE
-  Colour of start/stop buttons
+  Colour of start/stop buttons DONE
+  Stop scales immdeiately
   Scale notes graph directly, not via pitch
 */
 
@@ -180,8 +181,9 @@ function playNote(audioContext,frequency, startTime, endTime, last) {
       oscillator.stop(endTime);
       if(last){
         oscillator.onended=function(){
-          console.log('last tone finished');
+          //console.log('last tone finished');
           document.querySelector('#scale').textContent='start scale';
+          document.getElementById("scale").style.backgroundColor = "GhostWhite";
           isScale=false;
         }
       }
@@ -191,6 +193,7 @@ function startScale(){  // once the scale has started we let it complete (prefer
   if (isScale) {
     document.querySelector('#scale').textContent=
    'start scale';
+   document.getElementById("scale").style.backgroundColor = "GhostWhite";
     isScale = false;
     return;
   }
@@ -198,6 +201,7 @@ function startScale(){  // once the scale has started we let it complete (prefer
     var last = false;
     document.querySelector('#scale').textContent=
    'stop scale';
+   document.getElementById("scale").style.backgroundColor = "yellow";
     isScale = true;
     audioContext = new AudioContext();
     sampleRateScale = audioContext.sampleRate;
@@ -224,11 +228,13 @@ function toggleVoiceInput() {
   if (isVoice) {  //switch off
   document.querySelector('#voice').textContent=
    'start voice';
+   document.getElementById("voice").style.backgroundColor = "GhostWhite";
     isVoice = false;
   }
   else {
     document.querySelector('#voice').textContent=
    'stop voice';
+   document.getElementById("voice").style.backgroundColor = "yellow";
     //console.log('Voice start');
     isVoice = true;
     audioContext = new AudioContext();
