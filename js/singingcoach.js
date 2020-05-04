@@ -1,22 +1,11 @@
 /* This branch uses the Tartini pitch detector   */
 /* TODOs */
-/*
-  config for 1, 2, upper, lower octaves scales DONE
-  initial values of arrays - use start from octave? DONE
-  restart isn't clean DONE
-  layout of scale setup section DONE
-  ONLY change scaleNotes and vAxis objects when any slider chnages (instead of in the Loop) DONE
-  test effects of buflen etc
-  Change scale on/off to stopped after scale has finished DONE
-  Colour of start/stop buttons DONE
-  Stop scales immdeiately DONE
-  Scale notes graph directly, not via pitch
-*/
+
 
 /************************ INITIALISATION ****************************/
 //parameters for the chart table
-const tTick = 200; //update rate of chart in ms
-const chart_table_length=64;
+
+const chart_table_length=128;
 var chartTime;
 var chartReady = true;
 var voiceArray = [60]; //initial chart tables
@@ -36,7 +25,7 @@ var isScale = false;
 var analyserVoice = null;
 var analyserScale = null;
 var noteFloat = null;
-var smoothing = 5; //the 1 value doesn't smooth at all
+var smoothing = 2; //the 1 value doesn't smooth at all
 
 const constraints = window.constraints = {
   audio: true,
@@ -51,8 +40,6 @@ var scaleNotes=[];
 const trf = 0.005; //rise fall time of tone
 const toneOn=1; //on & off gains
 const toneOff=0.001;
-
- 
 
 /*************** notes array************/
 /* names of the notes in sequence ******/
@@ -79,7 +66,6 @@ getScale(octave);
 
 function getRange(clicked) { //this gets called when user changes vocal range
   range=clicked;
-  //console.log('range', clicked, range);
   generateVaxisObjs(range);
 }
 
@@ -87,14 +73,14 @@ function getRange(clicked) { //this gets called when user changes vocal range
 google.charts.setOnLoadCallback(UpdateLoop);
 
 /********* The overall timing loop - runs every tTick ms ***********/
-setInterval(UpdateLoop, tTick);
+setInterval(UpdateLoop, tTick); //this clock uses ms! tTick is defined in index.html file
 
 function UpdateLoop() {
 
   if(isScale || isVoice){
     chartTime=performance.now();
     
-    if(octaveChanged){  //need to update scale notes and chart axis
+    if(octaveChanged){  //update scale notes and chart axis
       getScale(octave);
       generateVaxisObjs(range);
       octaveChanged=false;
@@ -103,22 +89,13 @@ function UpdateLoop() {
     
     if(isScale) {
       //plot scale when the audio time is right
-    var currentTime = audioContext.currentTime;
+      var currentTime = audioContext.currentTime;
 
-    while (oscsStartTimes.length && oscsStartTimes[0].time < currentTime) {
-      currentNote = oscsStartTimes[0].note; //this will be plotted on chart
-      console.log('current note ', currentNote);
-      oscsStartTimes.splice(0,1);   // remove note from queue
-    }
-    
-      /*analyserScale.getFloatTimeDomainData( bufScale );
-      pitch = getPitch(bufScale,sampleRateScale);
-      if (pitch === 0.0 || pitch == -1 || !isFinite(pitch)) {  //catch bad pitch values
-        noteFloat = null ;
+      while (oscsStartTimes.length && oscsStartTimes[0].time < currentTime) {
+        currentNote = oscsStartTimes[0].note; //this will be plotted on chart
+        console.log('current note ', currentNote);
+        oscsStartTimes.splice(0,1);   // remove note from queue
       }
-      else {
-        noteFloat = 12 * (Math.log( pitch / 440 )/Math.log(2) )+69;
-      } */
       
       scaleArray.push(currentNote); //note value
     }
@@ -240,7 +217,6 @@ function startScale(){  // once the scale has started we let it complete (prefer
     
     var  now = audioContext.currentTime;
     //play the scale
-    //console.log('scale notes', scaleNotes);
     for(var i=0; i<scaleNotes.length; i++){
       if(i==scaleNotes.length-1){
         last=true;  //use this to signal last tone
