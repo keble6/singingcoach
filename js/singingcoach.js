@@ -9,7 +9,7 @@
   test effects of buflen etc
   Change scale on/off to stopped after scale has finished DONE
   Colour of start/stop buttons DONE
-  Stop scales immdeiately
+  Stop scales immdeiately DONE
   Scale notes graph directly, not via pitch
 */
 
@@ -166,50 +166,64 @@ function getScale(octave) {
   scaleArray[0] = scaleNotes[0];
 }
 
+var oscs = []; //list of oscillators
 
 /************ playNote (for scale mode) ***********/
-function playNote(audioContext,frequency, startTime, endTime, last) {
-	  	gainNode = audioContext.createGain(); //to get smooth rise/fall
-      oscillator = audioContext.createOscillator();
-      oscillator.frequency.value=frequency;
-      oscillator.connect(gainNode);
-		  gainNode.connect(analyserScale); //analyser is global
-		  analyserScale.connect(audioContext.destination);
-      gainNode.gain.exponentialRampToValueAtTime(toneOn,  startTime + trf);
-      gainNode.gain.exponentialRampToValueAtTime(toneOff, endTime+trf);
-      oscillator.start(startTime);
-      oscillator.stop(endTime);
-      if(last){
-        oscillator.onended=function(){
-          //console.log('last tone finished');
-          document.querySelector('#scale').textContent='start scale';
-          document.getElementById("scale").style.backgroundColor = "GhostWhite";
-          isScale=false;
-        }
-      }
+function playNote(audioContext,frequency, startTime, endTime, last, index) {
+	gainNode = audioContext.createGain(); //to get smooth rise/fall
+	
+	oscillator = audioContext.createOscillator();
+  oscillator.frequency.value=frequency;
+  oscillator.connect(gainNode);
+  //code to keep track of alll the oscs so that they can be switched off if scale is stopped by user
+	oscs[index] = oscillator;
+	
+	gainNode.connect(analyserScale); //analyser is global
+	analyserScale.connect(audioContext.destination);
+  gainNode.gain.exponentialRampToValueAtTime(toneOn,  startTime + trf);
+  gainNode.gain.exponentialRampToValueAtTime(toneOff, endTime+trf);
+  oscillator.start(startTime);
+  oscillator.stop(endTime);
+  if(last){
+    oscillator.onended=function(){
+    //console.log('last tone finished');
+      stopScaleButton();
     }
-    
+  }
+}
+
+function stopScaleButton(){ //change colour & text of button, change flag
+  document.querySelector('#scale').textContent='start scale';
+  document.getElementById("scale").style.backgroundColor = "GhostWhite";
+  isScale = false;
+  // code to stop any scheduled scale notes
+  for(let i=0; i<oscs.length; i++) {
+    if(oscs[i]){
+      oscs[i].stop(0);
+    }
+  }
+}
+function startScaleButton(){
+  document.querySelector('#scale').textContent='stop scale';
+  document.getElementById("scale").style.backgroundColor = "yellow";
+  isScale = true;
+}
+
 function startScale(){  // once the scale has started we let it complete (prefer to stop though)
   if (isScale) {
-    document.querySelector('#scale').textContent=
-   'start scale';
-   document.getElementById("scale").style.backgroundColor = "GhostWhite";
-    isScale = false;
+    stopScaleButton();
     return;
   }
   else {
     var last = false;
-    document.querySelector('#scale').textContent=
-   'stop scale';
-   document.getElementById("scale").style.backgroundColor = "yellow";
-    isScale = true;
+    startScaleButton();
+    
     audioContext = new AudioContext();
     sampleRateScale = audioContext.sampleRate;
     analyserScale = audioContext.createAnalyser();
     analyserScale.fftSize = 2048;
     analyserScale.connect(audioContext.destination);
-    //the following scale notes will have to be user selectable
-    // need to combine MIDI notes list in drawChart with notes list above
+    
     var  now = audioContext.currentTime;
     //play the scale
     //console.log('scale notes', scaleNotes);
@@ -217,7 +231,7 @@ function startScale(){  // once the scale has started we let it complete (prefer
       if(i==scaleNotes.length-1){
         last=true;  //use this to signal last tone
       }
-      playNote(audioContext,frequencyFromNoteNumber(scaleNotes[i]), now+i*tBeat, now + i*tBeat+tTone, last);
+      playNote(audioContext,frequencyFromNoteNumber(scaleNotes[i]), now+i*tBeat, now + i*tBeat+tTone, last, i);
     }
     return;
   }
