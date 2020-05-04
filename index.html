@@ -17,13 +17,13 @@
 			<button type="button" onclick="startScale()" id="scale" style="backgroundcolor:GhostWhite">start scale</button>
       </div>
 
-      <div class="range"><p style="text-align:center">  <b>Vocal range</b></p>
+      <div class="range"><p>  <b>Vocal range</b></p>
 			  <pre><input type="radio" name="range" value="soprano" onClick="getRange(this.value)">Soprano       C4-C6</pre>
         <pre><input type="radio" name="range" value="mezzo" onClick="getRange(this.value)" checked>Mezzo-soprano A3-A5</pre>
         <pre><input type="radio" name="range" value="contralto" onClick="getRange(this.value)">Contralto     F3-F5</pre>
       </div>
 
-      <div class="scaleSetup"><p style="text-align:center"> <b>Scale setup</b></p>
+      <div class="scaleSetup"><p> <b>Scale setup</b></p>
         
         <div class="rangeslider">
           <br>
@@ -64,13 +64,19 @@
     
     <script>
     //CODE FOR SLIDERS MUST BE HERE TO AVOID LOAD TIMING PROBLEMS!!!!!
+    const tTickRatio=16; //sets the number of chart samples per beat
+    
       var tempoSlider = document.getElementById("tempo");
       var tempoOutput = document.getElementById("tempoOut");
       tempoOutput.innerHTML = tempoSlider.value;
       var tBeat = 60 / tempoSlider.value; //seconds per beat
+      
+      var tTick = 1000*tBeat/tTickRatio; //tick time is in ms!!
+      
       tempoSlider.oninput = function() {
         tempoOutput.innerHTML = this.value;
         tBeat = 60 / this.value; //seconds per beat
+        var tTick = 1000*tBeat/tTickRatio; //tick time is in ms!!
       }
       
       var durSlider = document.getElementById("duration");

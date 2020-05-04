@@ -61,12 +61,14 @@ div.onoff {
   border-radius: 12px;
 }
 div.range {
+  text-align:center;
   font-size: 90%;
   border: 2px solid black;
   margin: 20px;
   border-radius: 12px;
 }
 div.scaleSetup {
+  text-align: center;
   font-size: 90%;
   border: 2px solid black;
   margin: 20px;
