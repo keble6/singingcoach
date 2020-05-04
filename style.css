@@ -4,7 +4,7 @@
 }
 .grid {
   display: grid;
-  grid-template-columns: 0.5fr 0.8fr 1.2fr;
+  grid-template-columns: 0.5fr 1fr 1fr 0.5fr;
 }
 
 .title{
