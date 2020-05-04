@@ -15,7 +15,7 @@
 
 /************************ INITIALISATION ****************************/
 //parameters for the chart table
-const tTick = 300; //update rate of chart in ms
+const tTick = 200; //update rate of chart in ms
 const chart_table_length=64;
 var chartTime;
 var chartReady = true;
@@ -93,7 +93,7 @@ function UpdateLoop() {
 
   if(isScale || isVoice){
     chartTime=performance.now();
-
+    
     if(octaveChanged){  //need to update scale notes and chart axis
       getScale(octave);
       generateVaxisObjs(range);
@@ -102,15 +102,25 @@ function UpdateLoop() {
 
     
     if(isScale) {
-      analyserScale.getFloatTimeDomainData( bufScale );
+      //plot scale when the audio time is right
+    var currentTime = audioContext.currentTime;
+
+    while (oscsStartTimes.length && oscsStartTimes[0].time < currentTime) {
+      currentNote = oscsStartTimes[0].note; //this will be plotted on chart
+      console.log('current note ', currentNote);
+      oscsStartTimes.splice(0,1);   // remove note from queue
+    }
+    
+      /*analyserScale.getFloatTimeDomainData( bufScale );
       pitch = getPitch(bufScale,sampleRateScale);
       if (pitch === 0.0 || pitch == -1 || !isFinite(pitch)) {  //catch bad pitch values
         noteFloat = null ;
       }
       else {
         noteFloat = 12 * (Math.log( pitch / 440 )/Math.log(2) )+69;
-      }
-      scaleArray.push(noteFloat); //note value
+      } */
+      
+      scaleArray.push(currentNote); //note value
     }
 
     if(isVoice) {
@@ -167,16 +177,18 @@ function getScale(octave) {
 }
 
 var oscs = []; //list of oscillators
+var oscsStartTimes = []; // and their start times
 
 /************ playNote (for scale mode) ***********/
-function playNote(audioContext,frequency, startTime, endTime, last, index) {
+function playNote(audioContext,note, startTime, endTime, last, index) {
 	gainNode = audioContext.createGain(); //to get smooth rise/fall
 	
 	oscillator = audioContext.createOscillator();
-  oscillator.frequency.value=frequency;
+  oscillator.frequency.value=frequencyFromNoteNumber(note);
   oscillator.connect(gainNode);
   //code to keep track of alll the oscs so that they can be switched off if scale is stopped by user
 	oscs[index] = oscillator;
+	oscsStartTimes.push({note: note, time: startTime}); //list of start times for chart
 	
 	gainNode.connect(analyserScale); //analyser is global
 	analyserScale.connect(audioContext.destination);
@@ -184,6 +196,7 @@ function playNote(audioContext,frequency, startTime, endTime, last, index) {
   gainNode.gain.exponentialRampToValueAtTime(toneOff, endTime+trf);
   oscillator.start(startTime);
   oscillator.stop(endTime);
+  
   if(last){
     oscillator.onended=function(){
     //console.log('last tone finished');
@@ -202,6 +215,7 @@ function stopScaleButton(){ //change colour & text of button, change flag
       oscs[i].stop(0);
     }
   }
+  oscsStartTimes=[]; //reset array for plotting
 }
 function startScaleButton(){
   document.querySelector('#scale').textContent='stop scale';
@@ -231,7 +245,8 @@ function startScale(){  // once the scale has started we let it complete (prefer
       if(i==scaleNotes.length-1){
         last=true;  //use this to signal last tone
       }
-      playNote(audioContext,frequencyFromNoteNumber(scaleNotes[i]), now+i*tBeat, now + i*tBeat+tTone, last, i);
+      //pass note number now, convert to frequency in function
+      playNote(audioContext,scaleNotes[i], now+i*tBeat, now + i*tBeat+tTone, last, i);
     }
     return;
   }
