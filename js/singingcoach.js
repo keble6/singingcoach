@@ -58,14 +58,14 @@ const notes = [
 
 
 /***************** START **********************/
-var range = "mezzo";  //default at start-up
-var octave = "lower";
+
 generateVaxisObjs(range); //construct the objects for chart axis
 getScale(octave);
 
 
 function getRange(clicked) { //this gets called when user changes vocal range
   range=clicked;
+  getScale(octave);
   generateVaxisObjs(range);
 }
 
@@ -94,7 +94,7 @@ function UpdateLoop() {
 
       while (oscsStartTimes.length && oscsStartTimes[0].time < currentTime) {
         currentNote = oscsStartTimes[0].note; //this will be plotted on chart
-        console.log('current note ', currentNote);
+        //console.log('current note ', currentNote);
         oscsStartTimes.splice(0,1);   // remove note from queue
       }
       
@@ -128,7 +128,7 @@ function UpdateLoop() {
     drawChart();
   }
   var t1 = performance.now();
-  console.log('loop took :', t1-t0);
+  //console.log('loop took :', t1-t0);
   
 }
 
@@ -137,11 +137,13 @@ function getScale(octave) {
   switch(range) {
   case("soprano"):    start=60; break;
   case("mezzo"):      start=57; break;
-  case("contralto"):  start=53;
+  case("contralto"):  start=53; break;
+  case("tenor"):      start=47;
   }
   //assemble the basic major scale (steps are 2, 2, 1, 2, 3, 1)
   scaleNotes=[start];
   scaleNotes.push(start+2,start+4, start+5, start+7, start+9, start+11, start+12);
+
   //now add the down sections
   switch(octave) {
     case("lower"):  for(var i=0; i<7; i++)
@@ -152,8 +154,6 @@ function getScale(octave) {
       for(i=0; i<7; i++) scaleNotes.push(scaleNotes[6-i]+12);
       for(i=0; i<7; i++) scaleNotes.push(scaleNotes[6-i]); break;
   }
-  // use scaleNotes[0] to fill the array
-  scaleArray[0] = scaleNotes[0];
 }
 
 var oscs = []; //list of oscillators
@@ -203,7 +203,7 @@ function startScaleButton(){
   isScale = true;
 }
 
-function startScale(){  // once the scale has started we let it complete (prefer to stop though)
+function toggleScale(){  //stasrt or stop scale playing
   if (isScale) {
     stopScaleButton();
     return;
@@ -211,6 +211,8 @@ function startScale(){  // once the scale has started we let it complete (prefer
   else {
     var last = false;
     startScaleButton();
+    //initial chart point
+    timeAndNote = [[performance.now(),60, scaleArray[0]]];
     
     audioContext = new AudioContext();
     sampleRateScale = audioContext.sampleRate;
@@ -226,6 +228,7 @@ function startScale(){  // once the scale has started we let it complete (prefer
       }
       //pass note number now, convert to frequency in function
       playNote(audioContext,scaleNotes[i], now+i*tBeat, now + i*tBeat+tTone, last, i);
+      //console.log('range', range,'note',scaleNotes[i] );
     }
     return;
   }
@@ -282,13 +285,14 @@ function frequencyFromNoteNumber( note ) {
 }
 
 
-function generateVaxisObjs(range) { //New method for generating vAxisTicks
+function generateVaxisObjs(range) { //this generates the vAxisTicks objects for chart
   var startTick;
   
   switch (range) {
     case "soprano": startTick=60-vAxisMargin; break;//start at note C4
     case "mezzo": startTick=57-vAxisMargin; break;
-    case "contralto": startTick=54-vAxisMargin; break;
+    case "contralto": startTick=53-vAxisMargin; break;
+    case "tenor": startTick=47-vAxisMargin; break;
   }
   viewWindowMin = startTick;  //variables will be used in drawChart to limit y axis
   viewWindowMax = startTick+24+2*vAxisMargin;
@@ -330,8 +334,7 @@ function drawChart() {
     },
     vAxis: {
       viewWindow: {min: viewWindowMin, max: viewWindowMax},
-      ticks: vAxisTicks //this is an array that depends on the selected (vocal) range
-      
+      ticks: vAxisTicks, //this is an array that depends on the selected (vocal) range
     }
   };
 
