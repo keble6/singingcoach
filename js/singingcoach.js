@@ -76,6 +76,7 @@ google.charts.setOnLoadCallback(UpdateLoop);
 setInterval(UpdateLoop, tTick); //this clock uses ms! tTick is defined in index.html file
 
 function UpdateLoop() {
+  var t0 = performance.now();
 
   if(isScale || isVoice){
     chartTime=performance.now();
@@ -126,6 +127,8 @@ function UpdateLoop() {
     }
     drawChart();
   }
+  var t1 = performance.now();
+  console.log('loop took :', t1-t0);
   
 }
 
