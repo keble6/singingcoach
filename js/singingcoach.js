@@ -1,131 +1,271 @@
-/* My code is based on: cwilso/Pitchdetect
+/* This app uses the Tartini pitch detector                */
+/* at https://github.com/bojan88/WASM-vs-JS-Pitch-detector */
+/*
+Copyright 2020 Rob Wilson
 
-The MIT License (MIT)
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
 
-Copyright (c) 2014 Chris Wilson
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */
-/* added to check if gUM (getUserMedia) is supported by browser*/
-/*if (navigator.mediaDevices) {
-			console.log('getUserMedia supported.');
-} else {
-			console.log('getUserMedia not supported on your browser!');
-}*/
 
-/* TO DOs */
-/* blank chart when squelched */
-/* start/stop for inputs */
-/* improved gui buttons */
-/* A GUI to choose:
-  Vocal range - 2 octaves?
-  Accompaniment - scale/single note/sequence and note length and bpm
-  */
+/* TODOs: fix(es) to allow webAudio on iPads */
+
 
 /************************ INITIALISATION ****************************/
 //parameters for the chart table
-const tTick = 300; //update rate of chart in ms
-const chart_table_length=64;
+
+const chart_table_length=128;
 var chartTime;
 var chartReady = true;
-var voiceArray = [60,64]; //initial chart tables
-var scaleArray = [60,65];
-var timeAndNote = [[performance.now(),60,60],[performance.now()+tTick,61,62]];
+var voiceArray = [60]; //initial chart tables
+var scaleArray = [60];
+var timeAndNote = [[performance.now(),60, 60],[performance.now()+tTick,60, 60]];
+var vAxisTicks={};  //y axis objects that will be changed with vocal range
+var viewWindowMin, viewWindowMax;
+const vAxisMargin = 4; //show this number of notes above and below the vocal range
 
-
-/********************* AUDIO Globals ****************************/
-window.AudioContext = window.AudioContext || window.webkitAudioContext;
-
-var isSquelched=true; //true when audio intput is too low
-var audioContext = null;
-var isVoice = false;// flags for each type of input
+/****************** Audio ********************/
+var buflen = 1024;
+var bufScale = new Float32Array( buflen );
+var bufVoice = new Float32Array( buflen );
+bufVoice.fill(1.0);
+var isVoice = false;
 var isScale = false;
-var sourceNode = null;
 var analyserVoice = null;
 var analyserScale = null;
-var theBuffer = null;
-var mediaStreamSource = null;
+var noteFloat = null;
+var smoothing = 2; //the 1 value doesn't smooth at all
+
 const constraints = window.constraints = {
   audio: true,
   video: false
 };
-/**************autoCorrelate globals********************* */
-var MIN_SAMPLES = 0;  // will be initialized when AudioContext is created.
-var MIN_AUDIO = 0.005;  // below this amplitude threshold we ignore the audio
-var GOOD_ENOUGH_CORRELATION = 0.9; // this is the "bar" for how close a correlation needs to be
-/************************************************ */
-var rafID = null;
-var tracks = null;
-var buflen = 1024;
-var buf = new Float32Array( buflen );
-/******************updatePitchVoice**********************/
-//smoothing parameter for low pass filter in updatePitch
-var smoothing  = 20;       // or whatever is desired
-var lastUpdate = new Date;
+
+/*** MISC ****/
 
 /********************* SCALE Globals ****************************/
 //scale playback parameters
-const tempo = 40; //beats per minute
-const tBeat = 60 / tempo; //seconds per beat
-const tTone = tBeat/2;  //tone sounds for a quarter of the scale note
+var scaleNotes=[];
 const trf = 0.005; //rise fall time of tone
 const toneOn=1; //on & off gains
 const toneOff=0.001;
 
-/*************** notes ************/
-const notes = {
-    C0: 16.351, Db0: 17.324, D0: 18.354, Eb0: 19.445, E0: 20.601, F0: 21.827, Gb0: 23.124, G0: 24.499, Ab0: 25.956, A0: 27.5, Bb0: 29.135, B0: 30.868,
-    C1: 32.703, Db1: 34.648, D1: 36.708, Eb1: 38.891, E1: 41.203, F1: 43.654, Gb1: 46.249, G1: 48.999, Ab1: 51.913, A1: 55, Bb1: 58.27, B1: 61.735,
-    C2: 65.406, Db2: 69.296, D2: 73.416, Eb2: 77.782, E2: 82.407, F2: 87.307, Gb2: 92.499, G2: 97.999, Ab2: 103.826, A2: 110, Bb2: 116.541, B2: 123.471,
-    C3: 130.813, Db3: 138.591, D3: 146.832, Eb3: 155.563, E3: 164.814, F3: 174.614, Gb3: 184.997, G3: 195.998, Ab3: 207.652, A3: 220, Bb3: 233.082, B3: 246.942,
-    C4: 261.626, Db4: 277.183, D4: 293.665, Eb4: 311.127, E4: 329.628, F4: 349.228, Gb4: 369.994, G4: 391.995, Ab4: 415.305, A4: 440, Bb4: 466.164, B4: 493.883,
-    C5: 523.251, Db5: 554.365, D5: 587.33, Eb5: 622.254, E5: 659.255, F5: 698.456, Gb5: 739.989, G5: 783.991, Ab5: 830.609, A5: 880, Bb5: 932.328, B5: 987.767,
-    C6: 1046.502, Db6: 1108.731, D6: 1174.659, Eb6: 1244.508, E6: 1318.51, F6: 1396.913, Gb6: 1479.978, G6: 1567.982, Ab6: 1661.219, A6: 1760, Bb6: 1864.655, B6: 1975.533,
-    C7: 2093.005, Db7: 2217.461, D7: 2349.318, Eb7: 2489.016, E7: 2637.021, F7: 2793.826, Gb7: 2959.955, G7: 3135.964, Ab7: 3322.438, A7: 3520, Bb7: 3729.31, B7: 3951.066
-};
-
+/*************** notes array************/
+/* names of the notes in sequence ******/
+/*** first (0th) item is MIDI note 12  *******/
+const notes = [
+    'C0','C#/Db0','D0','D#/Eb0', 'E0', 'F0', 'F#/Gb0', 'G0', 'G#/Ab0', 'A0', 'A#/Bb0', 'B0',
+    'C1','C#/Db1','D1','D#/Eb1', 'E1', 'F1', 'F#/Gb1', 'G1', 'G#/Ab1', 'A1', 'A#/Bb1', 'B1',
+    'C2','C#/Db2','D2','D#/Eb2', 'E2', 'F2', 'F#/Gb2', 'G2', 'G#/Ab2', 'A2', 'A#/Bb2', 'B2',
+    'C3','C#/Db3','D3','D#/Eb3', 'E3', 'F3', 'F#/Gb3', 'G3', 'G#/Ab3', 'A3', 'A#/Bb3', 'B3',
+    'C4','C#/Db4','D4','D#/Eb4', 'E4', 'F4', 'F#/Gb4', 'G4', 'G#/Ab4', 'A4', 'A#/Bb4', 'B4',
+    'C5','C#/Db5','D5','D#/Eb5', 'E5', 'F5', 'F#/Gb5', 'G5', 'G#/Ab5', 'A5', 'A#/Bb5', 'B5',
+    'C6','C#/Db6','D6','D#/Eb6', 'E6', 'F6', 'F#/Gb6', 'G6', 'G#/Ab6', 'A6', 'A#/Bb6', 'B6',
+    'C7','C#/Db7','D7','D#/Eb7', 'E7', 'F7', 'F#/Gb7', 'G7', 'G#/Ab7', 'A7', 'A#/Bb7', 'B7'
+    
+];
 
 
 /***************** START **********************/
-// load the chart's Google code and then call drawChart function
-google.charts.load('current', {'packages':['corechart']});
-google.charts.setOnLoadCallback(drawChart);
 
-// The overall timiong loop - runs every tTick ms
-setInterval(UpdateLoop, tTick);
+generateVaxisObjs(range); //construct the objects for chart axis
+getScale(octave);
+
+
+function getRange(clicked) { //this gets called when user changes vocal range
+  range=clicked;
+  getScale(octave);
+  generateVaxisObjs(range);
+}
+
+// after load, start the chart update loop
+google.charts.setOnLoadCallback(UpdateLoop);
+
+/********* The overall timing loop - runs every tTick ms ***********/
+setInterval(UpdateLoop, tTick); //this clock uses ms! tTick is defined in index.html file
 
 function UpdateLoop() {
+  var t0 = performance.now();
+
   if(isScale || isVoice){
     chartTime=performance.now();
-    if(isScale) {
-      updatePitchScale();
+    
+    if(octaveChanged){  //update scale notes and chart axis
+      getScale(octave);
+      generateVaxisObjs(range);
+      octaveChanged=false;
     }
-    if(isVoice){
-      updatePitchVoice();
+
+    
+    if(isScale) {
+      //plot scale when the audio time is right
+      var currentTime = audioContext.currentTime;
+
+      while (oscsStartTimes.length && oscsStartTimes[0].time < currentTime) {
+        currentNote = oscsStartTimes[0].note; //this will be plotted on chart
+        //console.log('current note ', currentNote);
+        oscsStartTimes.splice(0,1);   // remove note from queue
+      }
+      
+      scaleArray.push(currentNote); //note value
+    }
+
+    if(isVoice) {
+      analyserVoice.getFloatTimeDomainData( bufVoice );
+      pitch = getPitch(bufVoice,sampleRateVoice);
+      if (pitch === 0.0 || pitch == -1 || !isFinite(pitch)) {  //catch bad pitch values
+        noteFloat = null ;
+      }
+      else {
+        noteFloat = 12 * (Math.log( pitch / 440 )/Math.log(2) )+69;
+      }
+        
+      if(voiceArray.length < chart_table_length){
+        voiceArray.push(noteFloat); //note value
+      }
+      else {  //apply filter, but don't filter if null is there
+        lastValue = voiceArray[chart_table_length - 1]; //last note
+        if(lastValue !== null && noteFloat !== null) {
+          voiceArray.shift();   //shift down
+          newValue = lastValue + (noteFloat-lastValue)/smoothing;
+          voiceArray.push(newValue);      //filtered value
+        }
+                         
+      }
+      
     }
     drawChart();
   }
+  var t1 = performance.now();
+  //console.log('loop took :', t1-t0);
   
 }
 
+/*** generate the notes for the scales for each range **/
+function getScale(octave) {
+  switch(range) {
+  case("soprano"):    start=60; break;
+  case("mezzo"):      start=57; break;
+  case("contralto"):  start=53; break;
+  case("tenor"):      start=47;
+  }
+  //assemble the basic major scale (steps are 2, 2, 1, 2, 3, 1)
+  scaleNotes=[start];
+  scaleNotes.push(start+2,start+4, start+5, start+7, start+9, start+11, start+12);
 
-/************************************************ */
+  //now add the down sections
+  switch(octave) {
+    case("lower"):  for(var i=0; i<7; i++)
+      scaleNotes.push(scaleNotes[6-i]); break;
+    case("upper"):  for(i=0; i<8; i++) scaleNotes[i]=scaleNotes[i]+12;
+      for(i=0; i<7; i++) scaleNotes.push(scaleNotes[6-i]); break;
+    case("both"):  for(i=0; i<7; i++) scaleNotes.push(scaleNotes[i+1]+12);
+      for(i=0; i<7; i++) scaleNotes.push(scaleNotes[6-i]+12);
+      for(i=0; i<7; i++) scaleNotes.push(scaleNotes[6-i]); break;
+  }
+}
+
+var oscs = []; //list of oscillators
+var oscsStartTimes = []; // and their start times
+
+/************ playNote (for scale mode) ***********/
+function playNote(audioContext,note, startTime, endTime, last, index) {
+	gainNode = audioContext.createGain(); //to get smooth rise/fall
+	
+	oscillator = audioContext.createOscillator();
+  oscillator.frequency.value=frequencyFromNoteNumber(note);
+  oscillator.connect(gainNode);
+  //code to keep track of alll the oscs so that they can be switched off if scale is stopped by user
+	oscs[index] = oscillator;
+	oscsStartTimes.push({note: note, time: startTime}); //list of start times for chart
+	
+	gainNode.connect(analyserScale); //analyser is global
+	analyserScale.connect(audioContext.destination);
+  gainNode.gain.exponentialRampToValueAtTime(toneOn,  startTime + trf);
+  gainNode.gain.exponentialRampToValueAtTime(toneOff, endTime+trf);
+  oscillator.start(startTime);
+  oscillator.stop(endTime);
+  
+  if(last){
+    oscillator.onended=function(){
+    //console.log('last tone finished');
+      stopScaleButton();
+    }
+  }
+}
+
+function stopScaleButton(){ //change colour & text of button, change flag
+  document.querySelector('#scale').textContent='start scale';
+  document.getElementById("scale").style.backgroundColor = "GhostWhite";
+  isScale = false;
+  // code to stop any scheduled scale notes
+  for(let i=0; i<oscs.length; i++) {
+    if(oscs[i]){
+      oscs[i].stop(0);
+    }
+  }
+  oscsStartTimes=[]; //reset array for plotting
+}
+function startScaleButton(){
+  document.querySelector('#scale').textContent='stop scale';
+  document.getElementById("scale").style.backgroundColor = "yellow";
+  isScale = true;
+}
+
+function toggleScale(){  //stasrt or stop scale playing
+  if (isScale) {
+    stopScaleButton();
+    return;
+  }
+  else {
+    var last = false;
+    startScaleButton();
+    //initial chart point
+    timeAndNote = [[performance.now(),60, scaleArray[0]]];
+    
+    audioContext = new AudioContext();
+    sampleRateScale = audioContext.sampleRate;
+    analyserScale = audioContext.createAnalyser();
+    analyserScale.fftSize = 2048;
+    analyserScale.connect(audioContext.destination);
+    
+    var  now = audioContext.currentTime;
+    //play the scale
+    for(var i=0; i<scaleNotes.length; i++){
+      if(i==scaleNotes.length-1){
+        last=true;  //use this to signal last tone
+      }
+      //pass note number now, convert to frequency in function
+      playNote(audioContext,scaleNotes[i], now+i*tBeat, now + i*tBeat+tTone, last, i);
+      //console.log('range', range,'note',scaleNotes[i] );
+    }
+    return;
+  }
+}
+
+
+function toggleVoiceInput() {
+  if (isVoice) {  //switch off
+  document.querySelector('#voice').textContent=
+   'start voice';
+   document.getElementById("voice").style.backgroundColor = "GhostWhite";
+    isVoice = false;
+  }
+  else {
+    document.querySelector('#voice').textContent=
+   'stop voice';
+   document.getElementById("voice").style.backgroundColor = "yellow";
+    //console.log('Voice start');
+    isVoice = true;
+    audioContext = new AudioContext();
+    sampleRateVoice = audioContext.sampleRate;
+    //get the audio stream
+    navigator.mediaDevices.getUserMedia(constraints).then(gotStream).catch(error);
+  }
+}
+
 /* functions for voice input */
 function error() {
     const errorMessage = 'navigator.MediaDevices.getUserMedia error: ' + error.message + ' ' + error.name;
@@ -142,83 +282,13 @@ function gotStream(stream) {
     //console.log('Stream ended');
   };
   window.stream = stream; // make variable available to browser console
-  //audio.srcObject = stream;
   // Create an AudioNode from the stream.
     mediaStreamSource = audioContext.createMediaStreamSource(stream);
     // Connect it to the destination.
     analyserVoice = audioContext.createAnalyser();
+    //console.log('analyserVoice created');
     analyserVoice.fftSize = 2048;
     mediaStreamSource.connect( analyserVoice );
-    updatePitchVoice();
-}
-
-
-function playNote(audioContext,frequency, startTime, endTime) {
-	  	gainNode = audioContext.createGain(); //to get smooth rise/fall
-      oscillator = audioContext.createOscillator();
-      oscillator.frequency.value=frequency;
-      oscillator.connect(gainNode);
-		  gainNode.connect(analyserScale); //analyser is global
-		  analyserScale.connect(audioContext.destination);
-      gainNode.gain.exponentialRampToValueAtTime(toneOn,  startTime + trf);
-      gainNode.gain.exponentialRampToValueAtTime(toneOff, endTime+trf);
-      oscillator.start(startTime);
-      oscillator.stop(endTime);
-    }
-    
-function startScale(){  // once the scale has started we let it complete (prefer to stop though)
-  if (isScale) {
-    isScale = false;
-    if (!window.cancelAnimationFrame){
-      window.cancelAnimationFrame = window.webkitCancelAnimationFrame;
-    }
-    window.cancelAnimationFrame( rafID );
-    return "play scale";
-  }
-  
-  else {
-    isScale = true;
-    audioContext = new AudioContext();
-    analyserScale = audioContext.createAnalyser();
-    analyserScale.fftSize = 2048;
-    analyserScale.connect(audioContext.destination);
-    //the following scale notes will have to be user selectable
-    // need to combine MIDI notes list in drawChart with notes list above
-    const scaleNotes = [notes.C4,notes.D4,notes.E4,notes.F4,notes.G4,notes.A4,notes.B4,notes.C5];
-    
-    var  now = audioContext.currentTime;
-    //play the scale (8 notes)
-    for(var i=0; i<8; i++){
-	    //console.log('start to paly notes');
-      playNote(audioContext,scaleNotes[i], now+i*tBeat, now + i*tBeat+tTone);
-    }
-    updatePitchScale();
-    return "stop";
-    }
-}
-
-/************************************************ */
-/* TODO */
-/** TOGGLE does not work - should change to use MediaStreamTrack
-    which has a method to remove the track **/
-
-function toggleVoiceInput() {
-  if (isVoice) {  //switch off
-        //stop playing and return
-        //sourceNode.stop( 0 );
-        //sourceNode = null;
-        //analyser = null;
-        if (!window.cancelAnimationFrame)
-			window.cancelAnimationFrame = window.webkitCancelAnimationFrame;
-        window.cancelAnimationFrame( rafID );
-        isVoice = false;
-    }
-    else {
-      isVoice = true;
-      audioContext = new AudioContext();
-      //got and get the audio stream
-      navigator.mediaDevices.getUserMedia(constraints).then(gotStream).catch(error);
-    }
 }
 
 function frequencyFromNoteNumber( note ) {
@@ -226,214 +296,61 @@ function frequencyFromNoteNumber( note ) {
 }
 
 
-
-/************************************************ */
-function autoCorrelate( buf, sampleRate ) {
-  //NOTE: the sampleRate parameter passed here comes from the default for the analyser (using analyser.sampleRate)
-	var SIZE = buf.length;
-	var MAX_SAMPLES = Math.floor(SIZE/2);
-	var best_offset = -1;
-	var best_correlation = 0;
-	var rms = 0;
-	var foundGoodCorrelation = false;
-	var correlations = new Array(MAX_SAMPLES);
-
-	for (var i=0;i<SIZE;i++) {
-		var val = buf[i];
-		rms += val*val;
-	}
-	rms = Math.sqrt(rms/SIZE);
-	if (rms<MIN_AUDIO) // not enough signal
-		return -1;
-
-	var lastCorrelation=1;
-	for (var offset = MIN_SAMPLES; offset < MAX_SAMPLES; offset++) {
-		var correlation = 0;
-		for (var i=0; i<MAX_SAMPLES; i++) {
-			correlation += Math.abs((buf[i])-(buf[i+offset]));
-		}
-		correlation = 1 - (correlation/MAX_SAMPLES);
-		correlations[offset] = correlation; // store it, for the tweaking we need to do below.
-		if ((correlation>GOOD_ENOUGH_CORRELATION) && (correlation > lastCorrelation)) {
-			foundGoodCorrelation = true;
-			if (correlation > best_correlation) {
-				best_correlation = correlation;
-				best_offset = offset;
-			}
-		} else if (foundGoodCorrelation) {
-			
-			var shift = (correlations[best_offset+1] - correlations[best_offset-1])/correlations[best_offset];
-
-			return sampleRate/(best_offset+(8*shift));
-		}
-		lastCorrelation = correlation;
-	}
-	if (best_correlation > 0.01) {
-		return sampleRate/best_offset;
-	}
-	return -1;
+function generateVaxisObjs(range) { //this generates the vAxisTicks objects for chart
+  var startTick;
+  
+  switch (range) {
+    case "soprano": startTick=60-vAxisMargin; break;//start at note C4
+    case "mezzo": startTick=57-vAxisMargin; break;
+    case "contralto": startTick=53-vAxisMargin; break;
+    case "tenor": startTick=47-vAxisMargin; break;
+  }
+  viewWindowMin = startTick;  //variables will be used in drawChart to limit y axis
+  viewWindowMax = startTick+24+2*vAxisMargin;
+  
+  // vAxisTicks has the format: [{v: 56, f: notes[56-12]},...] for Google Charts
+  var rangeNotes=[];
+  for (let i = startTick; i < (startTick+24+2*vAxisMargin); i++){ //2 octaves with 4 notes either side
+    rangeNotes[i] = notes[i-12];
+  }
+  vAxisTicks = Object.entries(rangeNotes).map(([key,val]) => {
+    return {v: key, f: val}
+  });
 }
-
-
-
-/*********************** updatePitchVoice *********************/
-function updatePitchVoice( time ) {
-	var cycles = new Array;
-	analyserVoice.getFloatTimeDomainData( buf );
-	var ac = autoCorrelate( buf, audioContext.sampleRate );
- 	if (ac == -1) {
-		isSquelched = true;
-    voiceArray.push(null);
-		
- 	}
- 	else {
- 	  isSquelched = false;
-	 	pitch = ac;
-    var noteFloat = 12 * (Math.log( pitch / 440 )/Math.log(2) )+69;
-    var note = Math.round( noteFloat );
-    //send note to chart
-    // first, fill up the table
-    
-    if(voiceArray.length < chart_table_length){
-        voiceArray.push(noteFloat);
-    }
-    else { //TODO - add rate-independence by scaling smoothing variable
-      // now filter the new value, depending on past filtered value
-      // concept is from http://phrogz.net/js/framerate-independent-low-pass-filter.html
-      lastValue = voiceArray[chart_table_length - 1]; //last note
-      voiceArray.shift();                                //shift down
-      var newValue = lastValue + (noteFloat-lastValue)/smoothing;
-      voiceArray.push(newValue);      //filtered value
-      console.log(chartTime, newValue);
-    }
       
-    
-	}
-	if (!window.requestAnimationFrame){
-		window.requestAnimationFrame = window.webkitRequestAnimationFrame;
-	}
-	/*if (isVoice) {
-	  rafID = window.requestAnimationFrame( updateLoop );
-  }*/
-}
 
-/*********************** updatePitchScale *********************/
-function updatePitchScale( time ) {
-	var cycles = new Array;
-	analyserScale.getFloatTimeDomainData( buf );
-	var ac = autoCorrelate( buf, audioContext.sampleRate );
- 	if (ac == -1) {
-		isSquelched = true;
- 	}
- 	else {
- 	  isSquelched = false;
-	 	pitch = ac;
-    var noteFloat = 12 * (Math.log( pitch / 440 )/Math.log(2) )+69;
-    var note = Math.round( noteFloat );
-    //send note to chart
-    // first, fill up the table - if not isSquelched
-    if(!isSquelched){
-      if(scaleArray.length < chart_table_length){
-        scaleArray.push(noteFloat);
-      }
-      else { //TODO - add rate-independence by scaling smoothing variable
-        // now filter the new value, depending on past filtered value
-        // concept is from http://phrogz.net/js/framerate-independent-low-pass-filter.html
-        lastValue = scaleArray[chart_table_length - 1]; //last note
-        scaleArray.shift();                                //shift down
-        var newValue = lastValue + (noteFloat-lastValue)/smoothing;
-        scaleArray.push(newValue);      //filtered value
-      }
       
-      /*if(chartReady){
-        chartReady = false;
-        drawChart(chartTime);
-      }*/
-    }
-	}
-	if (!window.requestAnimationFrame){
-		window.requestAnimationFrame = window.webkitRequestAnimationFrame;
-	}
-	/*if (isScale) {
-	  rafID = window.requestAnimationFrame( updatePitchScale );
-  }*/
-}
-
-
-//drawChart();
-// CHART - the table needs to be updated with time
-
-/************************************************ */
+/*******************drawChart********************** */
 
 function drawChart() {
+  document.getElementById("time").innerHTML = Math.round(chartTime/1000.0) ;
   //now assemble the scale and voice arrays
   var voiceNote = voiceArray[voiceArray.length - 1];
   var scaleNote = scaleArray[scaleArray.length - 1];
-  //console.log(Math.round(currentTime), scaleNote);
   timeAndNote.push([chartTime, voiceNote, scaleNote]) ;
   var data = google.visualization.arrayToDataTable(timeAndNote, true);
 
   var options = {
-    title: 'note vs time',
+    chartArea: {left: 80,top:0},
+    //title: 'note vs time',
     curveType: 'none',
     legend: { position: 'bottom' },
     hAxis: { //remove x axis clutter so it looks like a moving display
       ticks: [],
       gridlines: {color:'transparent'},
-      viewWindow: { //thsi gives a "moving" chart
+      viewWindow: { //this gives a "moving" chart
         min: chartTime-64*tTick,
         max: chartTime
       },
     },
     vAxis: {
-      viewWindow: {min: 46, max: 81},
-      
-      ticks: [   // this table is based on Scientific Pitch Notation - which is NOT universal (some change the octave number at A!)
-      {v: 48, f: 'C3'},
-      {v: 49, f: 'C♯3/D♭3'},
-      {v: 50, f: 'D3'},
-      {v: 51, f: 'D♯3/E♭3'},
-      {v: 52, f: 'E3'},
-      {v: 53, f: 'F3'},
-      {v: 54, f: 'F♯3/G♭3'},
-      {v: 55, f: 'G3'},
-      {v: 56, f: 'G♯3/A♭3'},
-      {v: 57, f: 'A3'},
-      {v: 58, f: 'A♯3/B♭3'},
-      {v: 59, f: 'B3'},
-      {v: 60, f: 'C4'},
-      {v: 61, f: 'C♯4/D♭4'},
-      {v: 62, f: 'D4'},
-      {v: 63, f: 'D♯4/E♭4'},
-      {v: 64, f: 'E4'},
-      {v: 65, f: 'F4'},
-      {v: 66, f: 'F♯4/G♭4'},
-      {v: 67, f: 'G5'},
-      {v: 68, f: 'G♯4/A♭4'},
-      {v: 69, f: 'A4'},
-      {v: 70, f: 'A♯4/B♭4'},
-      {v: 71, f: 'B4'},
-      {v: 72, f: 'C5'},
-      {v: 73, f: 'C♯5/D♭5'},
-      {v: 74, f: 'D5'},
-      {v: 75, f: 'D♯5/E♭5'},
-      {v: 76, f: 'E5'},
-      {v: 77, f: 'F5'},
-      {v: 78, f: 'F♯5/G♭5'},
-      {v: 79, f: 'G5'},
-      {v: 80, f: 'G♯5/A♭5'},
-      {v: 81, f: 'A5'},
-      {v: 82, f: 'A♯5/G♭b5'},
-      {v: 83, f: 'B5'},
-      ]
+      viewWindow: {min: viewWindowMin, max: viewWindowMax},
+      ticks: vAxisTicks, //this is an array that depends on the selected (vocal) range
     }
   };
 
   var chart = new google.visualization.LineChart(document.getElementById('curve_chart'));
 
-    
-
-        // Listen for the 'ready' event, and call my function readyHandler() when it's been drawn.
   google.visualization.events.addListener(chart, 'ready', readyHandler);
 
   chart.draw(data, options);
@@ -446,3 +363,137 @@ function readyHandler() {
           //drawChart();
         }
 
+/********************** TARTINI CODDE ***********************/
+/**** changed to return 0 instead of null for bad case ****/
+onmessage = function(e) {
+  const startTime = performance.now();
+  const pitch = getPitch(new Float32Array(e.data.buffer), e.data.sampleRate);
+  const execTime = performance.now() - startTime;
+
+  postMessage({pitch, execTime});
+}
+
+const LOWER_PITCH_CUTOFF = 20.0;
+const SMALL_CUTOFF = 0.5;
+const CUTOFF = 0.93;
+
+function getPitch(buffer, sampleRate) {
+  const nsdf = normalizedSquareDifference(buffer);
+  const maxPositions = peakPicking(nsdf);
+  const estimates = [];
+
+  let highestAmplitude = Number.MIN_SAFE_INTEGER;
+
+  for(let i of maxPositions) {
+    highestAmplitude = Math.max(highestAmplitude, nsdf[i]);
+    if (nsdf[i] > SMALL_CUTOFF) {
+      let est = parabolicInterpolation(nsdf, i);
+      estimates.push(est);
+      highestAmplitude = Math.max(highestAmplitude, est[1]);
+    }
+  }
+
+  if(estimates.length === 0) {
+    return 0.0; //was null
+  }
+
+  const actualCutoff = CUTOFF * highestAmplitude;
+  let period = 0.0;
+
+  for(est of estimates) {
+    if(est[1] >= actualCutoff) {
+      period = est[0];
+      break;
+    }
+  }
+
+  const pitchEst = sampleRate / period;
+
+  return pitchEst > LOWER_PITCH_CUTOFF ? pitchEst : -1;
+}
+
+function peakPicking(nsdf) {
+  const maxPositions = [];
+  let pos = 0;
+  let curMaxPos = 0;
+  const len = nsdf.length;
+
+  while(pos < (len - 1) / 3 && nsdf[pos] > 0.0) {
+    pos++;
+  }
+  while(pos < len - 1 && nsdf <= 0.0) {
+    pos++;
+  }
+
+  if(pos === 0) {
+    pos = 1;
+  }
+
+  while(pos < len -1) {
+    if(nsdf[pos] < nsdf[pos - 1] && nsdf[pos] >= nsdf[pos + 1]) {
+      if(curMaxPos === 0) {
+        curMaxPos = pos;
+      } else if(nsdf[pos] > nsdf[curMaxPos]) {
+        curMaxPos = pos;
+      }
+    }
+
+    pos++;
+
+    if(pos < len - 1 && nsdf[pos] <= 0.0) {
+      if(curMaxPos > 0) {
+        maxPositions.push(curMaxPos);
+        curMaxPos = 0;
+      }
+      while(pos < len - 1 && nsdf <= 0.0) {
+        pos++;
+      }
+    }
+  }
+
+  if(curMaxPos > 0) {
+    maxPositions.push(curMaxPos);
+  }
+
+  return maxPositions;
+}
+
+function normalizedSquareDifference(buffer) {
+  const len = buffer.length;
+  const nsdf = new Array(len).fill(0.0);
+
+  for(let tau = 0; tau < len; tau++) {
+    let acf = 0.0;
+    let divisorM = 0.0;
+
+    for(let i = 0; i < len - tau; i++) {
+      acf += buffer[i] * buffer[i + tau];
+      let el1 = buffer[i];
+      let p1 = Math.pow(el1, 2);
+      let el2 = buffer[i + tau];
+      let p2 = Math.pow(el2, 2);
+      divisorM += p1 + p2;
+    }
+
+    nsdf[tau] = 2.0 * acf / divisorM;
+  }
+
+  return nsdf;
+}
+
+function parabolicInterpolation(nsdf, tau) {
+  const nsdfa = nsdf[tau - 1];
+  const nsdfb = nsdf[tau];
+  const nsdfc = nsdf[tau + 1];
+  const bottom = nsdfc + nsdfa - 2.0 * nsdfb;
+
+  if(bottom === 0.0) {
+    return [tau, nsdfb]
+  } else {
+    let delta = nsdfa - nsdfc;
+    return [
+      tau + delta / (2.0 * bottom),
+      nsdfb - delta * delta / (8.0 * bottom)
+    ]
+  }
+}

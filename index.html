@@ -1,23 +1,110 @@
-<!doctype html>
+<!DOCTYPE html>
 <html>
-	<head>
-		<title>Singing Coach</title>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width">
+    <title>Sing!</title>
+    <link href="style.css" rel="stylesheet" type="text/css" />
+  </head>
+  <body>
+    <div class="grid">
 
-		
-	</head>
-	<body>
-		<script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
-    <script src="js/singingcoach.js"></script>
+      <div class="title"><h3>Singing coach</h3></div>
+      
+      <div class="onoff">
+        <br>
+        <button type="button" onclick="toggleVoiceInput()" id="voice" style="backgroundcolor:GhostWhite">start voice</button><br>
+			<button type="button" onclick="toggleScale()" id="scale" style="backgroundcolor:GhostWhite">start scale</button>
+      </div>
 
-		<p>
-			<button onclick="toggleVoiceInput()">voice input</button>
-			<button onclick="toggleOscillator()">toggle osc</button>
-			<button onclick="startScale()">play scale</button>
-		</p>
+      <div class="range"><p>  <b>Vocal range</b></p>
+			  <pre><input type="radio" name="range" value="soprano" onClick="getRange(this.value)">Soprano       C4-C6</pre>
+        <pre><input type="radio" name="range" value="mezzo" onClick="getRange(this.value)" checked>Mezzo-soprano A3-A5</pre>
+        <pre><input type="radio" name="range" value="contralto" onClick="getRange(this.value)">Contralto     F3-F5</pre>
+        <pre><input type="radio" name="range" value="tenor" onClick="getRange(this.value)">Tenor         B2-B4</pre>
+      </div>
 
+      <div class="scaleSetup"><p> <b>Scale setup</b></p>
+        
+        <div class="rangeslider">
+          <br>
+          <input type="range" min="5" max="25" value="10"
+                  class="myslider" id="tempo">
+          <label for="tempo">Tempo (bpm)</label>
+          <p style="text-align:center" id="tempoOut"></p><br>
 
-    <div id="curve_chart" style="width: 700px; height: 700px"></div>
+          <input type="range" min="0.25" max="1" value="0.5" step="0.25" class="myslider" id="duration">
+          <label for="duration">Note length</label>
+          <p style="text-align:center" id="durOut"></p><br>
+
+          <input type="range" min="0" max="2" value="0" step="1"
+                  class="myslider" id="octave">
+          <label for="octave">Scale octaves</label>
+          <p style="text-align:center"  id="octOut"></p>
+       </div>
+       
+      </div>
+      <div class="about">
+        <br>
+        <form action="./about.html">
+          <input type="submit" value="About" />
+        </form>
+        
+        
+      </div>
+      
+      <div class="time"  id="time">&nbsp;time (s):</div>
+      <div class="curve_chart" id="curve_chart"></div>
+
+    </div>
     
-	</body>
-  
+    <script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
+    <script type="text/javascript">
+      google.charts.load('current', {packages: ['corechart']});
+    </script>
+    
+    <script>
+    //CODE FOR SLIDERS MUST BE HERE TO AVOID LOAD TIMING PROBLEMS!!!!!
+      const tTickRatio=16; //sets the number of chart samples per beat
+    
+      var range = "mezzo";  //default at start-up
+      var octave = "lower";
+      var tempoSlider = document.getElementById("tempo");
+      var tempoOutput = document.getElementById("tempoOut");
+      tempoOutput.innerHTML = tempoSlider.value;
+      var tBeat = 60 / tempoSlider.value; //seconds per beat
+      
+      var tTick = 1000*tBeat/tTickRatio; //tick time is in ms!!
+      
+      tempoSlider.oninput = function() {
+        tempoOutput.innerHTML = this.value;
+        tBeat = 60 / this.value; //seconds per beat
+        var tTick = 1000*tBeat/tTickRatio; //tick time is in ms!!
+      }
+      
+      var durSlider = document.getElementById("duration");
+      var durOutput = document.getElementById("durOut");
+      durOutput.innerHTML = durSlider.value;
+      var tTone = tBeat*durSlider.value;  //tone sounds for durSlider.value of the scale note
+      durSlider.oninput = function() {
+        durOutput.innerHTML = this.value;
+        tTone = tBeat*this.value;
+      }
+      
+      var octaveChanged = true; //flag to run getScale if needed;
+      var octSlider = document.getElementById("octave");
+      var octOutput = document.getElementById("octOut");
+      const octWords = ["lower", "upper", "both"];
+      octOutput.innerHTML = octWords[octSlider.value];
+      octave = octWords[octSlider.value];
+
+      octSlider.oninput = function() {
+        octOutput.innerHTML = octWords[this.value];
+        octave = octWords[this.value];
+        octaveChanged = true;
+      }
+    </script>
+    <script src="js/singingcoach.js"></script>
+    
+  </body>
 </html>
